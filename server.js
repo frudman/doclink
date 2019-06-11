@@ -89,7 +89,9 @@ function fmtDoc(doc, cb) {
         }
         else {
             type = 'text/html';
-            resp = htmlPage(md.render(`[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` + data + `\n\n**doclink source: ${DOCLINK_SOURCE}**`));
+            resp = htmlPage(md.render(`\n\n[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` 
+                        + data 
+                        + `\n\n**doclink source: ${DOCLINK_SOURCE}**`));
         }
 
         cb(resp, type, code);
