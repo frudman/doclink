@@ -27,6 +27,19 @@ const DOCLINK_SOURCE = fs.readFileSync(__dirname + '/doclink-source');
 //const DOCLINK_SOURCE = `/Users/frederic/simplytel-dev/doclink`;
 const srcModules = `${DOCLINK_SOURCE}/node_modules`; 
 
+const htmlPageTemplate = `<!doctype html>
+<html>
+    <head>
+    </head>
+    <body>
+        {{content-here}}
+    </body>
+</html>`;
+
+function htmlPage(body) {
+    return htmlPageTemplate.replace('{{content-here}}', body);
+}
+
 // 3 ways to install this:
 // - npm install it: requires copying package.json file; then exec npm install for each app
 // - npm install GLOBAL those required here (and assume they'll get picked up here: do once from source app)
@@ -76,7 +89,7 @@ function fmtDoc(doc, cb) {
         }
         else {
             type = 'text/html';
-            resp = md.render(`[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` + data + `\n\n**doclink source: ${DOCLINK_SOURCE}**`);
+            resp = htmlPage(md.render(`[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` + data + `\n\n**doclink source: ${DOCLINK_SOURCE}**`));
         }
 
         cb(resp, type, code);
