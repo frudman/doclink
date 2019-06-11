@@ -4,7 +4,11 @@
   "description": "creates on-the-fly mac os apps to display markdown docs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "chmod +x server.js"
+  },
+  "bin": {
+    "doclink": "./index.js"
   },
   "author": "Frederic Rudman",
   "license": "ISC",
