@@ -1,11 +1,10 @@
 {
   "name": "doclink",
-  "version": "1.0.0",
-  "description": "creates on-the-fly mac os apps to display markdown docs",
+  "version": "1.0.1",
+  "description": "creates on-the-fly mac os apps to display [editable] markdown docs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "chmod +x server.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
     "doclink": "./index.js"

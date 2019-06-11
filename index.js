@@ -17,7 +17,7 @@ const log = console.log.bind(console),
 const VISUAL_CODE_EDITOR = '/usr/local/bin/code'; // must be an absolute path
 const CHROME_BROWSER = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; // ALWAYS! (AND MUST be quoted to use on command line/shell)
 
-const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if non install -g ?)
+const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm install -g? different dir?)
 
 /* for reference:
     #!/bin/bash
@@ -37,21 +37,22 @@ if (process.argv.length === 3)
     linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
 else if (process.argv.length === 4 && process.argv[2] === 'viewer')
     useAsViewer(process.argv[3]);
+else
+    log('usage: doclink file-to-be-viewed.md');
 
 function linkDocument(docFile) {
-    const desktopDir = `${process.env.HOME}/Desktop`; // where we put it for easy ref
+    // bare minimum mac application!
+    const desktopDir = `${process.env.HOME}/Desktop`; // where we put it for easy access
     const file = docFile[0] === '/' ? docFile : `${process.env.PWD}/${docFile}`; // make absolute    
     const name = path.basename(file).replace(/[.]\w+$/i, ''); // remove extension (cleaner look for app name)    
     const appDir = `${desktopDir}/${name}.app/Contents/MacOS`,
-          pkgInfo = `${desktopDir}/${name}.app/Contents/PkgInfo`,
           appPgm = `${appDir}/${name}`,
           pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`;
     
     fs.mkdirSync(appDir, { recursive: true });
     fs.writeFileSync(appPgm, pgm, {mode: 0o755}); // rwx r-x r-x (ugo or a = user-group-others)
-    fs.writeFileSync(pkgInfo, 'APPL???'); // yep, exactly like that
     
-    log('created app ' + name + ' for ' + file + '\nas mac app ' + appPgm);
+    log(`created app ${name} for ${file}\nmac app: ${appPgm}`);
 }
 
 function useAsViewer(doc) {
@@ -60,26 +61,20 @@ function useAsViewer(doc) {
         PORT: 56789,
         get URL() { return `http://${SERVER.HOSTNAME}:${SERVER.PORT}`; },
     };
-    
-    const htmlPageTemplate = `<!doctype html>
-    <html>
-        <head>
-        </head>
-        <body>
-            {{content-here}}
-        </body>
-    </html>`;
-    
+        
     function htmlPage(body) {
+        const htmlPageTemplate = `<!doctype html>
+        <html>
+            <head>
+            </head>
+            <body>
+                {{content-here}}
+            </body>
+        </html>`;
+
         return htmlPageTemplate.replace('{{content-here}}', body);
     }
-    
-    const markdownIt = require(`markdown-it`),
-          md = new markdownIt();
-           
-    md.use(require(`markdown-it-anchor`)); // Optional, but makes sense as you really want to link to something
-    md.use(require(`markdown-it-table-of-contents`));
-    
+        
     var stickAround = false; // true if/when server is also started (i.e. first time)
     
     function showDocument() {
@@ -88,11 +83,16 @@ function useAsViewer(doc) {
         });
     }
     
-    function editFile(doc) {
+    function editDoc(doc) {
         execFile(VISUAL_CODE_EDITOR, [doc]);
     }
     
     function fmtDoc(doc, cb) {
+        const markdownIt = require(`markdown-it`),
+              md = new markdownIt()
+                .use(require(`markdown-it-anchor`)) // optional, but makes sense as you really want to link to something
+                .use(require(`markdown-it-table-of-contents`));
+
         fs.readFile(doc, (err, data) => {
             var type = 'text/plain', code = 200, resp = '';
             if (err) {
@@ -138,7 +138,7 @@ function useAsViewer(doc) {
                 res.end('yes, started, all good\n');
             }
             else if (/^[/]edit[?]/i.test(req.url)) {
-                editFile(doc());
+                editDoc(doc());
                 // redirect to itself (else page clicked on would show nothing after click)
                 res.writeHead(302, { Location: `${SERVER.URL}?doc=${encodeURI(doc())}` }); 
                 res.end();
@@ -161,10 +161,5 @@ function useAsViewer(doc) {
     // see if an instance is already running
     httpGet(SERVER.URL + '/started?')
         .then(showDocument)
-        .catch(startLocalServer);
-    
-    // #!/bin/bash
-    // CHROME_BROWSER="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    // "$CHROME_BROWSER" --kiosk --app="http://127.0.0.1:56351?doc=sdfgsdfgsdfgsdf"
-    
+        .catch(startLocalServer);    
 }
