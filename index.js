@@ -9,6 +9,9 @@
 
 // pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
 // restart finder: sudo killall Finder
+
+// todo: each AppIcon.icns file is about 390K; maybe use a hard/soft link back to source dir instead?
+//       - not sure if that works for mac os (i.e. link inside app's /Resources folder)
       
 /* for reference from before:
     #!/bin/bash
@@ -44,6 +47,8 @@ const APP_VERSION = require('./package.json').version;
 const APP_ICONS = 'appicons';
 
 // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
+// using CoreFoundation keys (hence CF)
+// CFBundleGetInfoString may be obsolete but still seems to work, so...
 const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
