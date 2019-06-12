@@ -7,6 +7,23 @@
 // - ln -s `pwd`/index.js /usr/local/bin/doclink
 // - chmod +x index.js 
 
+// pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
+// restart finder: sudo killall Finder
+      
+/* for reference from before:
+    #!/bin/bash
+    CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    APP="file:///Users/frederic/simplytel-dev/vue-webpack-1/vue-app-2/DOCS/LINUX.md"
+    "$CHROME" --app="$APP"
+
+    ## to auto close terminal window: method 1
+    ## from: https://stackoverflow.com/questions/5125907/how-to-run-a-shell-script-in-os-x-by-double-clicking
+    ##osascript -e 'tell application "Terminal" to close front window' > /dev/null 2>&1 &
+
+    ## to auto close terminal window: method 2
+    ## READ: https://stackoverflow.com/a/17910412/11256689
+*/
+
 const log = console.log.bind(console),
       path = require('path'),
       fs = require('fs'),
@@ -14,19 +31,16 @@ const log = console.log.bind(console),
       url = require('url'),
       { execFile, execFileSync } = require('child_process');
 
+// helpers
+const mustache = (str,vars) => Object.entries(vars).reduce((sofar,[k,v]) => sofar.replace(`{{${k}}}`,v), str);
+const sleep = (delayInMS, doAfter) => setTimeout(doAfter, delayInMS);
+      
 const VISUAL_CODE_EDITOR = '/usr/local/bin/code'; // must be an absolute path
 const CHROME_BROWSER = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; // ALWAYS! (AND MUST be quoted to use on command line/shell)
 
 const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm install -g? different dir?)
 
 const APP_VERSION = require('./package.json').version;
-
-const mustache = (str,vars) => Object.keys(vars).reduce((sofar,k) => sofar.replace(`{{${k}}}`,vars[k]), str);
-const sleep = (delay,doAfter) => setTimeout(doAfter, delay);
-
-// pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
-// restart finder: sudo killall Finder
-
 const APP_ICONS = 'appicons';
 
 // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
@@ -42,22 +56,8 @@ const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
 </plist>`, {
     APP_VERSION,
     APP_ICONS,
-    YEAR: new Date().getFullYear()+1,
+    YEAR: new Date().getFullYear() + 1,
 });
-
-/* for reference:
-    #!/bin/bash
-    CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    APP="file:///Users/frederic/simplytel-dev/vue-webpack-1/vue-app-2/DOCS/LINUX.md"
-    "$CHROME" --app="$APP"
-
-    ## to auto close terminal window: method 1
-    ## from: https://stackoverflow.com/questions/5125907/how-to-run-a-shell-script-in-os-x-by-double-clicking
-    ##osascript -e 'tell application "Terminal" to close front window' > /dev/null 2>&1 &
-
-    ## to auto close terminal window: method 2
-    ## READ: https://stackoverflow.com/a/17910412/11256689
-*/
 
 if (process.argv.length === 3)
     linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
@@ -73,11 +73,11 @@ function createAppIcons(src, dst) {
     // - possible reason: the file time must be at least a few seconds older than app itself???
     // - workaround below: create .icns file first, then wait a few seconds before creating the app itself
     
-    // based on: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
+    // below based on: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
     // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
     // also read: https://applehelpwriter.com/tag/iconutil/
 
-    // IMAGE LIBRARY: http://sharp.dimens.io/en/stable/
+    // IMAGE LIBRARY: http://sharp.dimens.io/en/stable/ [WOW, very impressive!!!]
     // https://stackoverflow.com/questions/24026320/node-js-image-resizing-without-imagemagick/28148572
     const sharp = require('sharp');
 
@@ -102,24 +102,23 @@ function createAppIcons(src, dst) {
             else {
                 log('all icons generated; removing ' + workFolder);
                 execFileSync('rm', ['-rf', workFolder]);
-                sleep(1000, resolve); // WORKAROUND from WHOAAA above (not clear how long to wait: 1s seems to work)
+                sleep(1000, resolve); // WORKAROUND from WHOAAA!!! above (not clear how long to wait: 1s seems to work)
             }
         });
     })
 }
 
-async function linkDocument(docFile) {
+async function linkDocument(docFile, destDir = `${process.env.HOME}/Desktop`) {
     
-    // bare minimum mac application!
+    // bare minimum Mac OS application!
 
-    const desktopDir = `${process.env.HOME}/Desktop`; // where we put it for easy access
     const file = docFile[0] === '/' ? docFile : `${process.env.PWD}/${docFile}`; // make absolute    
     const name = path.basename(file).replace(/[.]\w+$/i, ''); // remove extension (cleaner look for app name)    
-    const appContents = `${desktopDir}/${name}.app/Contents`,
+    const appContents = `${destDir}/${name}.app/Contents`,
           macOSDir = `${appContents}/MacOS`,
           resourcesDir = `${appContents}/Resources`,
           appPgm = `${macOSDir}/${name}`,
-          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`,
+          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`, // YEP! that's the actual "program" :-)
           infoPlist = `${appContents}/Info.plist`;
 
     // Step 1 - Create app's icons first (MUST be first, as per below)
