@@ -12,12 +12,38 @@ const log = console.log.bind(console),
       fs = require('fs'),
       http = require('http'),
       url = require('url'),
-      { execFile } = require('child_process');
+      { execFile, execFileSync } = require('child_process');
 
 const VISUAL_CODE_EDITOR = '/usr/local/bin/code'; // must be an absolute path
 const CHROME_BROWSER = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; // ALWAYS! (AND MUST be quoted to use on command line/shell)
 
 const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm install -g? different dir?)
+
+const APP_VERSION = require('./package.json').version;
+
+const mustache = (str,vars) => Object.keys(vars).reduce((sofar,k) => sofar.replace(`{{${k}}}`,vars[k]), str);
+const sleep = (delay,doAfter) => setTimeout(doAfter, delay);
+
+// pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
+// restart finder: sudo killall Finder
+
+const APP_ICONS = 'appicons';
+
+// read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
+const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleGetInfoString</key>
+	<string>{{APP_VERSION}}, Copyright © 2019-{{YEAR}}, Freddy Inc.</string>
+	<key>CFBundleIconFile</key>
+	<string>{{APP_ICONS}}</string>
+</dict>
+</plist>`, {
+    APP_VERSION,
+    APP_ICONS,
+    YEAR: new Date().getFullYear()+1,
+});
 
 /* for reference:
     #!/bin/bash
@@ -40,18 +66,82 @@ else if (process.argv.length === 4 && process.argv[2] === 'viewer')
 else
     log('usage: doclink file-to-be-viewed.md');
 
-function linkDocument(docFile) {
+function createAppIcons(src, dst) {
+
+    // BIG WHOAAA!!!: it seems that the appicons.icns file must be created BEFORE copy to app directory
+    // otherwise Finder does NOT seem to pick it its icons for the app
+    // - possible reason: the file time must be at least a few seconds older than app itself???
+    // - workaround below: create .icns file first, then wait a few seconds before creating the app itself
+    
+    // based on: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
+    // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
+    // also read: https://applehelpwriter.com/tag/iconutil/
+
+    // IMAGE LIBRARY: http://sharp.dimens.io/en/stable/
+    // https://stackoverflow.com/questions/24026320/node-js-image-resizing-without-imagemagick/28148572
+    const sharp = require('sharp');
+
+    return new Promise(async (resolve,reject) => {
+        
+        log('creating app icon set\nfrom:', src, '\nto:', dst);
+
+        const workFolder = path.dirname(dst) + '/' + path.parse(dst).name + '.iconset';
+        fs.mkdirSync(workFolder, { recursive: true });
+
+        // as required by Apple (generates exactly 10 entries); note: NO 64 bit entry...
+        const icnsSizes = [ 16, 32, 128, 256, 512 ]; // no 64 entry...
+        for (const size of icnsSizes) {
+            await sharp(src).resize(size, size).toFile(`${workFolder}/icon_${size}x${size}.png`);
+            await sharp(src).resize(size*2, size*2).toFile(`${workFolder}/icon_${size}x${size}@2x.png`);
+        };
+
+        // now MUST: iconutil -c icns AppIcon.iconset
+        execFile('iconutil', ['-c', 'icns', workFolder], err => {
+            if (err) 
+                reject(err);
+            else {
+                log('all icons generated; removing ' + workFolder);
+                execFileSync('rm', ['-rf', workFolder]);
+                sleep(1000, resolve); // WORKAROUND from WHOAAA above (not clear how long to wait: 1s seems to work)
+            }
+        });
+    })
+}
+
+async function linkDocument(docFile) {
+    
     // bare minimum mac application!
+
     const desktopDir = `${process.env.HOME}/Desktop`; // where we put it for easy access
     const file = docFile[0] === '/' ? docFile : `${process.env.PWD}/${docFile}`; // make absolute    
     const name = path.basename(file).replace(/[.]\w+$/i, ''); // remove extension (cleaner look for app name)    
-    const appDir = `${desktopDir}/${name}.app/Contents/MacOS`,
-          appPgm = `${appDir}/${name}`,
-          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`;
-    
-    fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(appPgm, pgm, {mode: 0o755}); // rwx r-x r-x (ugo or a = user-group-others)
-    
+    const appContents = `${desktopDir}/${name}.app/Contents`,
+          macOSDir = `${appContents}/MacOS`,
+          resourcesDir = `${appContents}/Resources`,
+          appPgm = `${macOSDir}/${name}`,
+          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`,
+          infoPlist = `${appContents}/Info.plist`;
+
+    // Step 1 - Create app's icons first (MUST be first, as per below)
+    // IMPORTANT: read BIG WHOAAA!!! inside createAppIcons() function
+    // AppIcon.icns generated from: iconutil -c icns AppIcon.iconset
+    // files in .iconset are exactly as is (yes, 64 bit entries NOT there)
+    // read: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
+    const srcLargestIcon = `${__dirname}/appicon-1024x1024.png`,
+          tmpIcns = `${__dirname}/${APP_ICONS}.icns`;
+    await createAppIcons(srcLargestIcon, tmpIcns); // will delay by a second or so...
+
+    // Step 2 - Now, create the app itself
+    fs.mkdirSync(macOSDir, { recursive: true });
+    fs.mkdirSync(resourcesDir, { recursive: true });
+    fs.writeFileSync(appPgm, pgm, { mode: 0o755 }); // rwx r-x r-x (ugo === a (for all) === user-group-others)
+    fs.copyFileSync(tmpIcns, `${resourcesDir}/${APP_ICONS}.icns`);
+    fs.unlinkSync(tmpIcns); // housekeeping
+    fs.writeFileSync(infoPlist, INFO_PLIST);
+
+    // not required (kept here for ref)
+    //fs.writeFileSync(`${appContents}/PkgInfo`, `APPL????`); // yes, '????' is valid!
+
     log(`created app ${name} for ${file}\nmac app: ${appPgm}`);
 }
 
@@ -103,7 +193,7 @@ function useAsViewer(doc) {
                 type = 'text/html';
                 resp = htmlPage(md.render(`\n\n[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` 
                             + data 
-                            + `\n\n**[${DOCLINK}** v.${require('./package.json').version}]`));
+                            + `\n\n**[${DOCLINK}** v.${APP_VERSION}]`));
             }
     
             cb(resp, type, code);
