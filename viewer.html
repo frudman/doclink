@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            body {
+                background: wheat;
+            }
+
+            a { text-decoration: none; cursor: pointer; }
+            a:hover { font-size: 1.2em; }
+
+            main {
+                margin: 35px 50px 25px 50px;
+            }
+
+            header {
+                position: fixed;
+                width: 100%;
+                background: yellow;
+                top: 0;
+                left: 0;
+                padding: 2px 0 1px 5px;
+            }
+
+            header a {
+                margin-right: 15px;
+            }
+
+            footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background: darkgreen;
+                color: white;
+                font-size: .9em;
+                padding: 0 0 0 5px;
+            }
+
+            footer a {
+                color: white;
+            }
+
+            main div[editor] { display: none; }
+            main[editing] div[viewer] { display: none; }
+            main[editing] div[editor] { display: flex; }
+
+            textarea {
+                width: 100%;
+                font-family: monospace;
+            }
+
+        </style>
+        <script>
+            window.addEventListener('load', setup);
+            const qs = selector => document.querySelector(selector);
+            const onX = (selector, event, listener) => qs(selector).addEventListener(event, listener);
+            function setup() {
+                onX('a[edit-here]', 'click', editorx);
+            }
+
+            function editorx() {
+                qs("main").toggleAttribute("editing")
+            }
+        </script>
+    </head>
+    <body>
+        <header>{{HEADER}}</header>
+        <main>
+            <div viewer>
+                {{MAIN_CONTENT}}
+            </div>
+            <div editor>
+                <textarea>{{SOURCE_CONTENT}}</textarea>
+                <div saveorcancel><button save>save</button><button cancel>cancel</button></div>
+            </div>
+        </main>
+        <footer>{{FOOTER}}</footer>
+    </body>
+</html>

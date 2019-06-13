@@ -27,6 +27,8 @@
     ## READ: https://stackoverflow.com/a/17910412/11256689
 */
 
+//#region Basic Definitions
+
 const log = console.log.bind(console),
       path = require('path'),
       fs = require('fs'),
@@ -46,6 +48,13 @@ const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm in
 const APP_VERSION = require('./package.json').version;
 const APP_ICONS = 'appicons';
 
+// when running as a server
+const SERVER = {
+    HOSTNAME: 'localhost',
+    PORT: 56789,
+    get URL() { return `http://${SERVER.HOSTNAME}:${SERVER.PORT}`; },
+};
+
 // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
 // using CoreFoundation keys (hence CF)
 // CFBundleGetInfoString may be obsolete but still seems to work, so...
@@ -64,15 +73,54 @@ const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
     YEAR: new Date().getFullYear() + 1,
 });
 
-if (process.argv.length === 3)
+const srcLargestIcon = `${__dirname}/src-appicon-1024x1024.png`;
+const commonAppIcons = `${__dirname}/macos-appicon.icns`;
+const commonInfoPlist = `${__dirname}/macos-info.plist`;
+
+function httpGet(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, resp => {
+            let data = '';
+            resp.on('data', chunk => data += chunk);
+            resp.on('end', () => resolve(data));
+        }).on("error", reject);
+    });
+}
+
+//#endregion
+
+if (process.argv.length === 3 && process.argv[2] === 'install')
+    installDocLink();
+else if (process.argv.length === 3) // last arg is doc to be linked (i.e. given a desktop ref)
     linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
 else if (process.argv.length === 4 && process.argv[2] === 'viewer')
-    useAsViewer(process.argv[3]);
+    useAsViewer(process.argv[3]); // last arg is doc to be viewed
 else
     log('usage: doclink file-to-be-viewed.md');
 
+async function installDocLink() {
+
+    // done one time: creates common info.plist & appicons.icns files used by all
+    // - all created links (i.e. desktop apps) will softlink-point to these
+
+    // Step 1 - Create app's icons first (MUST be first, as per below)
+    // IMPORTANT: read BIG WHOAAA!!! inside createAppIcons() function
+    // AppIcon.icns generated from: iconutil -c icns AppIcon.iconset
+    // files in .iconset are exactly as is (yes, 64 bit entries NOT there)
+    // read: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
+    await createAppIcons(srcLargestIcon, commonAppIcons); // will delay by a second or so...
+
+    // step 2:
+    fs.writeFileSync(commonInfoPlist, INFO_PLIST);
+}
+
 function createAppIcons(src, dst) {
 
+    // big whoaaa comment below no longer applicable because we now only create the icon
+    // file once, during installation of this doclink app; from there on, any created links/apps
+    // will then point back to this "common" file (i.e. a softlink, shown as an "alias" in a mac folder)
+
+    // [comment below for ref only]
     // BIG WHOAAA!!!: it seems that the appicons.icns file must be created BEFORE copy to app directory
     // otherwise Finder does NOT seem to pick it its icons for the app
     // - possible reason: the file time must be at least a few seconds older than app itself???
@@ -123,52 +171,27 @@ async function linkDocument(docFile, destDir = `${process.env.HOME}/Desktop`) {
           macOSDir = `${appContents}/MacOS`,
           resourcesDir = `${appContents}/Resources`,
           appPgm = `${macOSDir}/${name}`,
-          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`, // YEP! that's the actual "program" :-)
-          infoPlist = `${appContents}/Info.plist`;
+          pgm = `#!/bin/bash\n${DOCLINK} viewer "${file}"`;//, // YEP! that's the actual "program" :-)
 
-    // Step 1 - Create app's icons first (MUST be first, as per below)
-    // IMPORTANT: read BIG WHOAAA!!! inside createAppIcons() function
-    // AppIcon.icns generated from: iconutil -c icns AppIcon.iconset
-    // files in .iconset are exactly as is (yes, 64 bit entries NOT there)
-    // read: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
-    const srcLargestIcon = `${__dirname}/appicon-1024x1024.png`,
-          tmpIcns = `${__dirname}/${APP_ICONS}.icns`;
-    await createAppIcons(srcLargestIcon, tmpIcns); // will delay by a second or so...
-
-    // Step 2 - Now, create the app itself
+    // Step 1 - create the app itself (folder & actual "program")
     fs.mkdirSync(macOSDir, { recursive: true });
     fs.mkdirSync(resourcesDir, { recursive: true });
     fs.writeFileSync(appPgm, pgm, { mode: 0o755 }); // rwx r-x r-x (ugo === a (for all) === user-group-others)
-    fs.copyFileSync(tmpIcns, `${resourcesDir}/${APP_ICONS}.icns`);
-    fs.unlinkSync(tmpIcns); // housekeeping
-    fs.writeFileSync(infoPlist, INFO_PLIST);
 
-    // not required (kept here for ref)
+    // Step 1b - create softlink to app icon
+    fs.symlinkSync(commonAppIcons, `${resourcesDir}/${APP_ICONS}.icns`)
+
+    // Step 1c - create softlink to app's info.plist
+    fs.symlinkSync(commonInfoPlist, `${appContents}/Info.plist`);
+
+    // Step 1d - not required (kept here for ref)
     //fs.writeFileSync(`${appContents}/PkgInfo`, `APPL????`); // yes, '????' is valid!
 
     log(`created app ${name} for ${file}\nmac app: ${appPgm}`);
 }
 
 function useAsViewer(doc) {
-    const SERVER = {
-        HOSTNAME: 'localhost',
-        PORT: 56789,
-        get URL() { return `http://${SERVER.HOSTNAME}:${SERVER.PORT}`; },
-    };
-        
-    function htmlPage(body) {
-        const htmlPageTemplate = `<!doctype html>
-        <html>
-            <head>
-            </head>
-            <body>
-                {{content-here}}
-            </body>
-        </html>`;
-
-        return htmlPageTemplate.replace('{{content-here}}', body);
-    }
-        
+                
     var stickAround = false; // true if/when server is also started (i.e. first time)
     
     function showDocument() {
@@ -181,39 +204,6 @@ function useAsViewer(doc) {
         execFile(VISUAL_CODE_EDITOR, [doc]);
     }
     
-    function fmtDoc(doc, cb) {
-        const markdownIt = require(`markdown-it`),
-              md = new markdownIt()
-                .use(require(`markdown-it-anchor`)) // optional, but makes sense as you really want to link to something
-                .use(require(`markdown-it-table-of-contents`));
-
-        fs.readFile(doc, (err, data) => {
-            var type = 'text/plain', code = 200, resp = '';
-            if (err) {
-                code = 400;
-                resp = err.message;
-            }
-            else {
-                type = 'text/html';
-                resp = htmlPage(md.render(`\n\n[file:/${doc}](${SERVER.URL}/edit?doc=${encodeURI(doc)})\n\n[[TOC]]\n\n` 
-                            + data 
-                            + `\n\n**[${DOCLINK}** v.${APP_VERSION}]`));
-            }
-    
-            cb(resp, type, code);
-        });
-    }
-    
-    function httpGet(url) {
-        return new Promise((resolve, reject) => {
-            http.get(url, resp => {
-                let data = '';
-                resp.on('data', chunk => data += chunk);
-                resp.on('end', () => resolve(data));
-            }).on("error", reject);
-        });
-    }
-    
     function startLocalServer() {
         const server = http.createServer((req, res) => {
             
@@ -223,6 +213,9 @@ function useAsViewer(doc) {
             // - ref: https://nodejs.org/dist/latest-v12.x/docs/api/http.html#http_response_writehead_statuscode_statusmessage_headers
             // - .writeHead SHOULD allow for chaining (resp.writeHead(...).end(...)) but it DOES NOT!
             // todo: notify node folks
+
+            // when must redirect to itself (else page clicked on would show nothing after click)
+            const backToCaller = () => { res.writeHead(302, { Location: req.headers.referer }); res.end(); }
     
             if (/^[/](stop|kill)$/i.test(req.url)) {
                 res.end('ok, stopped\n');
@@ -233,9 +226,11 @@ function useAsViewer(doc) {
             }
             else if (/^[/]edit[?]/i.test(req.url)) {
                 editDoc(doc());
-                // redirect to itself (else page clicked on would show nothing after click)
-                res.writeHead(302, { Location: `${SERVER.URL}?doc=${encodeURI(doc())}` }); 
-                res.end();
+                backToCaller();
+            }
+            else if (/^[/]open[?]/i.test(req.url)) {
+                execFile('open', [doc()]);
+                backToCaller();
             }
             else {
                 fmtDoc(doc(), (body,type,code) => {
@@ -256,4 +251,40 @@ function useAsViewer(doc) {
     httpGet(SERVER.URL + '/started?')
         .then(showDocument)
         .catch(startLocalServer);    
+}
+
+function fmtDoc(doc, cb) {
+    const markdownIt = require(`markdown-it`),
+          md = new markdownIt()
+            .use(require(`markdown-it-anchor`))
+            .use(require(`markdown-it-table-of-contents`));
+
+    const href = (cmd, docRef=doc) => `href='${SERVER.URL}/${cmd}?doc=${encodeURI(docRef)}'`;
+
+    const HEADER = `<a ${href('open', path.dirname(doc))} title='click to open folder'>${doc}</a>
+                    <a edit-here>[edit]</a>
+                    <a ${href('edit')}>[edit with vscode]</a>`;
+
+    const FOOTER = `<a ${href('open', __dirname)} title='click to open folder'>viewer is ${DOCLINK} v.${APP_VERSION}</a>`;
+
+    const html = fs.readFileSync(`${__dirname}/viewer.html`, { encoding: 'utf8'});
+
+    fs.readFile(doc, {encoding: 'utf8'}, (err, data) => {
+        var type = 'text/plain', code = 200, resp = '';
+        if (err) {
+            code = 400;
+            resp = err.message;
+        }
+        else {
+            type = 'text/html';
+            resp = mustache(html, {
+                HEADER,
+                MAIN_CONTENT: md.render('[[TOC]]\n\n' + data),
+                SOURCE_CONTENT: data,
+                FOOTER,
+            });
+        }
+
+        cb(resp, type, code);
+    });
 }
