@@ -7,7 +7,7 @@ const copyToClipboard = (function() {
     const el = document.createElement('textarea');
     window.addEventListener('load', () => {
         document.body.appendChild(el);
-        el.setAttribute('sorta-hidden', '');
+        el.setAttribute('clipboard-utility', '');
     })
     return str => {
         el.value = str;

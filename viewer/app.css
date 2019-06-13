@@ -103,12 +103,20 @@ code:hover::after {
     content: " \02750"; /* todo: find better one (see aws ec2 copies) */
 }
 
-[sorta-hidden] { 
-    /* used (at least) for copy-to-clipboard feature (on click) */
-    /* cannot use 'display: none;' because, at least on chrome on mac, this prevents clipboard-copy feature */
-    /* likely a security feature; below is an alternative */
+[clipboard-utility] { 
+    
+    /* FRAGILE CODE: warning!
+       - used for copy-to-clipboard feature (on click)
+       - cannot use 'display: none;' because, at least on chrome on mac, this prevents clipboard-copy feature
+       - this is likely a security feature; below is an alternative
+       - also looks like 'border: none;' breaks it, so don't use it; might be that the textarea needs a non-zero size to be considered legitimate
+         for clipboard operations
+    */
+
     position: absolute;
     left: -9999999px; /* way the fuck off broadway */
     width: 0; /* belt */
     height: 0; /* suspender */
+    margin: 0;
+    padding: 0;
 }
