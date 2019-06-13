@@ -103,12 +103,8 @@ async function installDocLink() {
     // done one time: creates common info.plist & appicons.icns files used by all
     // - all created links (i.e. desktop apps) will softlink-point to these
 
-    // Step 1 - Create app's icons first (MUST be first, as per below)
-    // IMPORTANT: read BIG WHOAAA!!! inside createAppIcons() function
-    // AppIcon.icns generated from: iconutil -c icns AppIcon.iconset
-    // files in .iconset are exactly as is (yes, 64 bit entries NOT there)
-    // read: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
-    await createAppIcons(srcLargestIcon, commonAppIcons); // will delay by a second or so...
+    // Step 1 - Create app's icons first
+    await createAppIcons(srcLargestIcon, commonAppIcons);
 
     // step 2:
     fs.writeFileSync(commonInfoPlist, INFO_PLIST);
@@ -126,8 +122,10 @@ function createAppIcons(src, dst) {
     // - possible reason: the file time must be at least a few seconds older than app itself???
     // - workaround below: create .icns file first, then wait a few seconds before creating the app itself
     
-    // below based on: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
-    // read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
+    // actual AppIcon.icns file generated from: iconutil -c icns AppIcon.iconset
+    // files in .iconset are exactly as is (yes, 64 bit entries NOT there)
+    // read: https://elliotekj.com/2014/05/27/how-to-create-high-resolution-icns-files/
+    // also read: http://www.mactipsandtricks.com/website/articles/Wiley_HT_appBundles2.lasso
     // also read: https://applehelpwriter.com/tag/iconutil/
 
     // IMAGE LIBRARY: http://sharp.dimens.io/en/stable/ [WOW, very impressive!!!]
@@ -261,11 +259,11 @@ function fmtDoc(doc, cb) {
 
     const href = (cmd, docRef=doc) => `href='${SERVER.URL}/${cmd}?doc=${encodeURI(docRef)}'`;
 
-    const HEADER = `<a ${href('open', path.dirname(doc))} title='click to open folder'>${doc}</a>
+    const HEADER = `<a ${href('open', path.dirname(doc))} title='click to open its containing folder'>${doc}</a>
                     <a edit-here>[edit]</a>
                     <a ${href('edit')}>[edit with vscode]</a>`;
 
-    const FOOTER = `<a ${href('open', __dirname)} title='click to open folder'>viewer is ${DOCLINK} v.${APP_VERSION}</a>`;
+    const FOOTER = `<a ${href('open', __dirname)} title='click to open that folder'>viewer is ${DOCLINK} v.${APP_VERSION}</a>`;
 
     const html = fs.readFileSync(`${__dirname}/viewer.html`, { encoding: 'utf8'});
 
