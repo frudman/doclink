@@ -1,11 +1,6 @@
 "use strict";
 
-// todo: convert `text` to copy text on clipboard (or with javascript?): code:hover
-
-// CAPTURE ctrl-s to save: DONE
-
-// todo: convert to events instead (to save,cancel, changed)
-
+// todo: convert to events emitter instead (to save,cancel, changed)
 
 
 const copyToClipboard = (function() {
@@ -13,9 +8,6 @@ const copyToClipboard = (function() {
     window.addEventListener('load', () => {
         document.body.appendChild(el);
         el.setAttribute('sorta-hidden', '');
-        // el.select();
-        // document.execCommand('copy');
-        // document.body.removeChild(el);
     })
     return str => {
         el.value = str;
@@ -23,11 +15,6 @@ const copyToClipboard = (function() {
         document.execCommand('copy');
     }    
 })();
-
-
-// whois -h registrar-for-domain.com domain.com//el.setAttribute('hidden', '');whois -h registrar-for-domain.com domain.com
-// whois -h registrar-for-domain.com domain.com hello 
-
 
 
 // helpers        
