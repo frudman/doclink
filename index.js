@@ -29,8 +29,13 @@
 
 //#region Basic Definitions
 
+// this app ---
 const GITHUB_PROJECT = 'https://github.com/frudman/doclink';
+const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm install -g? different dir?)
+const DOCLINK_FOLDER = __dirname;
+const DOCLINK_VERSION = require('./package.json').version;
 
+// helpers ---
 const log = console.log.bind(console),
       path = require('path'),
       fs = require('fs'),
@@ -38,17 +43,31 @@ const log = console.log.bind(console),
       url = require('url'),
       { execFile, execFileSync } = require('child_process');
 
-// helpers
 const mustache = (str,vars) => Object.entries(vars).reduce((sofar,[k,v]) => sofar.replace(`{{${k}}}`,v), str);
-const sleep = (delayInMS, doAfter) => setTimeout(doAfter, delayInMS);
-      
+const sleep = (delayInMS, doAfter) => setTimeout(doAfter, delayInMS); // alt: sleep = delayMS => new Promise(resolve => setTimeout(resolve,delayMS)) 
+
+function httpGet(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, resp => {
+            let data = '';
+            resp.on('data', chunk => data += chunk);
+            resp.on('end', () => resolve(data));
+        }).on("error", reject);
+    });
+}
+
+// enables non-js requires: e.g. require('./text-based-file.css')
+`txt html css x.js`.split(' ') // use .x.js for template-based .js code (so won't interfere with require processing for normal modules)
+    .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
+
+// https://www.npmjs.com/package/mime
+const mimetype = file => require('mime/lite').getType(file); // e.g. from 'filename.css' to 'text/css'
+
+// APP SETTINGS ---
 const VISUAL_CODE_EDITOR = '/usr/local/bin/code'; // must be an absolute path
 const CHROME_BROWSER = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; // ALWAYS! (AND MUST be quoted to use on command line/shell)
 
-const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm install -g? different dir?)
-
-const APP_VERSION = require('./package.json').version;
-const APP_ICONS = 'appicons';
+const DOCLINK_ICONS = 'appicons';
 
 // when running as a server
 const SERVER = {
@@ -65,36 +84,19 @@ const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
     <key>CFBundleGetInfoString</key>
-	<string>{{APP_VERSION}}, Copyright © 2019-{{YEAR}}, Freddy Inc.</string>
+	<string>{{DOCLINK_VERSION}}, Copyright © 2019-{{YEAR}}, Freddy Inc.</string>
 	<key>CFBundleIconFile</key>
-	<string>{{APP_ICONS}}</string>
+	<string>{{DOCLINK_ICONS}}</string>
 </dict>
 </plist>`, {
-    APP_VERSION,
-    APP_ICONS,
+    DOCLINK_VERSION,
+    DOCLINK_ICONS,
     YEAR: new Date().getFullYear() + 1,
 });
 
 const srcLargestIcon = `${__dirname}/src-appicon-1024x1024.png`;
 const commonAppIcons = `${__dirname}/macos-appicon.icns`;
 const commonInfoPlist = `${__dirname}/macos-info.plist`;
-
-function httpGet(url) {
-    return new Promise((resolve, reject) => {
-        http.get(url, resp => {
-            let data = '';
-            resp.on('data', chunk => data += chunk);
-            resp.on('end', () => resolve(data));
-        }).on("error", reject);
-    });
-}
-
-// enables enhanced requires: e.g. require('./text-based-file.css')
-`txt html css x.js`.split(' ') // use .x.js for template-based .js code (so won't interfere with require processing for normal modules)
-    .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
-
-// https://www.npmjs.com/package/mime
-const mimetype = file => require('mime/lite').getType(file); // e.g. from 'filename.css' to 'text/css'
 
 //#endregion
 
@@ -190,7 +192,7 @@ async function linkDocument(docFile, destDir = `${process.env.HOME}/Desktop`) {
     fs.writeFileSync(appPgm, pgm, { mode: 0o755 }); // rwx r-x r-x (ugo === a (for all) === user-group-others)
 
     // Step 1b - create softlink to app icon
-    fs.symlinkSync(commonAppIcons, `${resourcesDir}/${APP_ICONS}.icns`)
+    fs.symlinkSync(commonAppIcons, `${resourcesDir}/${DOCLINK_ICONS}.icns`)
 
     // Step 1c - create softlink to app's info.plist
     fs.symlinkSync(commonInfoPlist, `${appContents}/Info.plist`);
@@ -222,7 +224,9 @@ function useAsViewer(doc) {
                   docc = purl.pathname, // differentiate from cmd-line doc
                   [isFolder, folderName] = docc.match(/^[/]open-folder([/].+)/) || [],
                   [editDocument, documentName] = docc.match(/^[/]edit-document([/].+)/) || [],
-                  [isAppFile, appFile] = docc.match(/^[/](app[.](css|js))$/) || [];
+                  [isAppFile, appFile] = docc.match(/^[/](app[.](css|js))$/) || [],                  
+                  [gettingDoc, docName] = docc.match(/^[/]get-document([/].+)/) || [],
+                  [savingDoc, docNameToSave] = docc.match(/^[/]save-document([/].+)/) || [];;
             
             // note: error in nodejs docs
             // - ref: https://nodejs.org/dist/latest-v12.x/docs/api/http.html#http_response_writehead_statuscode_statusmessage_headers
@@ -251,8 +255,26 @@ function useAsViewer(doc) {
                 res.writeHead(200, { 'Content-Type': mimetype(appFile) });
                 fs.createReadStream(`${__dirname}/viewer/${appFile}`).pipe(res);
             }
+            else if (gettingDoc) {
+                log('getting', docName);
+                fmtDoc(docName).then(({html, plain}) => {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({html,plain}));    
+                });
+            }
+            else if (savingDoc) {
+                saveDocument(docNameToSave, req)
+                    .then(({html,plain}) => {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ saved: true, html, plain }));
+                    })
+                    .catch(err => {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ saved: false, error: err.message }));
+                    })
+            }
             else { // view document (default)
-                fmtDoc(docc, (body,type,code) => {
+                mainHtmlPage(docc, (body,type,code) => {
                     res.writeHead(code, { 'Content-Type': type });
                     res.end(body);
                 });
@@ -266,46 +288,60 @@ function useAsViewer(doc) {
         });
     }
     
-    // see if an instance is already running
+    // is there an instance already started?
     httpGet(SERVER.URL + '/started?')
-        .then(showDocument)
-        .catch(startLocalServer);    
+        .then(showDocument) // yep, so use that one
+        .catch(startLocalServer); // nope, so let's start one now
 }
 
-function fmtDoc(doc, cb) {
+function saveDocument(filename, request) {
+    return new Promise((resolve,reject) => {
+        const bodyParts = [];
+        request
+            .on('data', chunk => bodyParts.push(chunk))
+            .on('end', () => {
+                const body = Buffer.concat(bodyParts).toString();
+
+                // save this TO FILE!!!
+                fs.writeFileSync(filename, body);
+
+                // lastly...
+                resolve(fmtDocMD(body)); // may already have been rejected if there was an error...
+            })
+            .on('error', reject);
+    });
+}
+
+function mainHtmlPage(DOCUMENT_FILE, cb) {
+    // const html = require('./viewer/app.html'); // require does NOT reload on changes (do when dev complete)
+    const html = fs.readFileSync(`${__dirname}/viewer/app.html`, 'utf8'); // while in dev mode
+
+    const resp = mustache(html, {
+        DOCUMENT_FILE,
+        DOCLINK,
+        DOCLINK_VERSION,
+        DOCLINK_FOLDER,
+        GITHUB_PROJECT,
+    });
+    cb(resp, 'text/html', 200);
+}
+
+function fmtDocMD(plain) {
     const markdownIt = require(`markdown-it`),
           md = new markdownIt()
             .use(require(`markdown-it-anchor`))
-            .use(require(`markdown-it-table-of-contents`));
+            .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
 
-    //const href = (cmd, docRef=doc) => `href='${SERVER.URL}/${cmd}${encodeURI(docRef)}'`;
-    const href = (cmd, docRef=doc) => `href='/${cmd}${encodeURI(docRef)}'`;
+    return { plain, html:`<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + plain), };
+}
 
-    const HEADER = `<a edit-here title='click to edit it right here'>[edit]</a>
-                    <a ${href('edit-document')}>[edit with vscode]</a>
-                    <a ${href('open-folder', path.dirname(doc))}>[open containing folder]</a>`;
-
-    const FOOTER = `<a ${href('open-folder', __dirname)} title='click to open that folder'>viewer: ${DOCLINK} v.${APP_VERSION}</a>
-                    <a github-ref href='${GITHUB_PROJECT}' target=_blank>[get it on github]</a>`;
-
-    const html = require('./viewer/app.html');
-
-    fs.readFile(doc, {encoding: 'utf8'}, (err, data) => {
-        var type = 'text/plain', code = 200, resp = '';
-        if (err) {
-            code = 400;
-            resp = err.message;
-        }
-        else {
-            type = 'text/html';
-            resp = mustache(html, {
-                HEADER,
-                MAIN_CONTENT: `<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + data),
-                EDITABLE_CONTENT: data,
-                FOOTER,
-            });
-        }
-
-        cb(resp, type, code);
-    });
+function fmtDoc(doc) {
+    return new Promise(resolve => {
+        fs.readFile(doc, 'utf8', (err, plain) => {
+            if (err)
+                resolve({html:`<h2>can't read this file</h2><p>${err.message}</p>`, plain})
+            else
+                resolve(fmtDocMD(plain));
+        });    
+    })
 }

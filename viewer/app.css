@@ -20,6 +20,13 @@ header {
 
 header a { margin-right: 15px; }
 
+body[editing] header [viewing] { display: none; }
+body:not([editing]) header [editing] { display: none; }
+
+body[editing][pending-changes] header [view-formatted] { display: none; }
+body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; }
+
+
 footer {
     background: darkgreen;
     color: white;
@@ -30,20 +37,50 @@ footer {
 footer a { color: white; }
 
 main {
-    flex: 1;
+    flex: 1; /* myself */
     overflow: auto;
     margin: 0;
     padding: 0 40px;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
 }
 
-main div[editor] { display: none; }
-main[editing] div[viewer] { display: none; }
-main[editing] div[editor] { display: flex; }
+div[editor] {
+    flex: 1; /* myself */
+    padding: 15px 0 10px 0;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
 
 div[editor] textarea {
-    width: 100%;
+    flex: 1; /* myself */
     font-family: monospace;
+    resize: none; /* hmmm, wonder what this does? :-) */
+    outline: none; /* no glowing outline on focus */
 }
+
+div[editor] button {
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+    color: white;
+    margin-top: 5px;
+    font-size: 1.2em;
+    outline: none;
+}
+
+body[editing] main div[viewer] { display: none; }
+body:not([editing]) main div[editor] { display: none; }
+body[nothing-to-show] header { display: none; }
+
+body:not([pending-changes]) div[update] { visibility: hidden; }
+
+button[save] { background: green; }
+button[cancel] { background: red; margin-left: 20px; }
 
 h2[toc] {
     cursor: pointer;
@@ -55,4 +92,20 @@ h2[toc]::after {
     content: ' \25BE';
 }
 
+a[github-ref] { padding-left: 40px; }
+
 div.table-of-contents[hide] { display: none; }
+
+code:hover { font-weight: bold; cursor: pointer; }
+code:hover::after {
+    /* LOWER RIGHT DROP-SHADOWED WHITE SQUARE */
+    content: " \02750"; /* sort of a document; https://www.toptal.com/designers/htmlarrows/symbols/ */
+}
+
+[sorta-hidden] { 
+    /*display: none;  DOES NOT WORK; at least on chrome on mac, display: none; prevents clipboard-copy feature */
+    position: absolute;
+    left: -9999999px;
+    width: 0;
+    height: 0;
+}

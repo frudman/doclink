@@ -1,6 +1,6 @@
 {
   "name": "doclink",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "creates on-the-fly mac os apps to display [editable] markdown docs",
   "main": "index.js",
   "scripts": {
