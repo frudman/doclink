@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+    <head>
+        <link rel=stylesheet href=/app.css>
+        <script src=/app.js></script>
+    </head>
+    <body>
+        <div fullpage>
+            <header>{{HEADER}}</header>
+            <main>
+                <div viewer>
+                    {{MAIN_CONTENT}}
+                </div>
+                <div editor>
+                    <textarea>{{EDITABLE_CONTENT}}</textarea>
+                    <div saveorcancel><button save>save</button><button cancel>cancel</button></div>
+                </div>
+            </main>
+            <footer>{{FOOTER}}</footer>
+        </div>
+    </body>
+</html>

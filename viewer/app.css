@@ -1,0 +1,58 @@
+a { text-decoration: none; cursor: pointer; }
+a:hover { text-decoration: underline; }
+
+html, body {
+    background: wheat;
+    margin: 0;
+    height: 100%;
+}
+
+div[fullpage] {
+    display: flex;
+    flex-direction: column;
+    height: 100%; 
+}
+
+header {
+    background: yellow;
+    padding: 2px 0 1px 5px;
+}
+
+header a { margin-right: 15px; }
+
+footer {
+    background: darkgreen;
+    color: white;
+    font-size: .9em;
+    padding: 0 0 0 5px;
+}
+
+footer a { color: white; }
+
+main {
+    flex: 1;
+    overflow: auto;
+    margin: 0;
+    padding: 0 40px;
+}
+
+main div[editor] { display: none; }
+main[editing] div[viewer] { display: none; }
+main[editing] div[editor] { display: flex; }
+
+div[editor] textarea {
+    width: 100%;
+    font-family: monospace;
+}
+
+h2[toc] {
+    cursor: pointer;
+    color: green;
+}
+
+h2[toc]::after {
+    font-size: .7em;
+    content: ' \25BE';
+}
+
+div.table-of-contents[hide] { display: none; }

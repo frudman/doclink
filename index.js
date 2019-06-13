@@ -29,6 +29,8 @@
 
 //#region Basic Definitions
 
+const GITHUB_PROJECT = 'https://github.com/frudman/doclink';
+
 const log = console.log.bind(console),
       path = require('path'),
       fs = require('fs'),
@@ -87,16 +89,27 @@ function httpGet(url) {
     });
 }
 
+// enables enhanced requires: e.g. require('./text-based-file.css')
+`txt html css x.js`.split(' ') // use .x.js for template-based .js code (so won't interfere with require processing for normal modules)
+    .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
+
+// https://www.npmjs.com/package/mime
+const mimetype = file => require('mime/lite').getType(file); // e.g. from 'filename.css' to 'text/css'
+
 //#endregion
 
-if (process.argv.length === 3 && process.argv[2] === 'install')
-    installDocLink();
-else if (process.argv.length === 3) // last arg is doc to be linked (i.e. given a desktop ref)
-    linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
+if (process.argv.length === 3) {
+    if (process.argv[2] === 'install')
+        installDocLink();
+    else if (process.argv[2] === 'stop')
+        httpGet(`${SERVER.URL}/stop`);
+    else // last arg is doc to be linked (i.e. given a desktop ref)
+        linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
+} 
 else if (process.argv.length === 4 && process.argv[2] === 'viewer')
     useAsViewer(process.argv[3]); // last arg is doc to be viewed
 else
-    log('usage: doclink file-to-be-viewed.md');
+    log('usage: doclink (file-to-be-viewed.md | install | stop)');
 
 async function installDocLink() {
 
@@ -193,20 +206,24 @@ function useAsViewer(doc) {
     var stickAround = false; // true if/when server is also started (i.e. first time)
     
     function showDocument() {
-        execFile(CHROME_BROWSER, [`--app=${SERVER.URL}?doc=${encodeURI(doc)}`], err => {
-            err ? process.exit(19) : stickAround || process.exit(0);
+        execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
+                err ? process.exit(19) : stickAround || process.exit(0);
         });
     }
     
     function editDoc(doc) {
         execFile(VISUAL_CODE_EDITOR, [doc]);
     }
-    
+
     function startLocalServer() {
         const server = http.createServer((req, res) => {
+
+            const purl = url.parse(req.url, true),
+                  docc = purl.pathname, // differentiate from cmd-line doc
+                  [isFolder, folderName] = docc.match(/^[/]open-folder([/].+)/) || [],
+                  [editDocument, documentName] = docc.match(/^[/]edit-document([/].+)/) || [],
+                  [isAppFile, appFile] = docc.match(/^[/](app[.](css|js))$/) || [];
             
-            const doc = () => decodeURI(url.parse(req.url, true).query.doc || '');
-    
             // note: error in nodejs docs
             // - ref: https://nodejs.org/dist/latest-v12.x/docs/api/http.html#http_response_writehead_statuscode_statusmessage_headers
             // - .writeHead SHOULD allow for chaining (resp.writeHead(...).end(...)) but it DOES NOT!
@@ -215,23 +232,27 @@ function useAsViewer(doc) {
             // when must redirect to itself (else page clicked on would show nothing after click)
             const backToCaller = () => { res.writeHead(302, { Location: req.headers.referer }); res.end(); }
     
-            if (/^[/](stop|kill)$/i.test(req.url)) {
+            if (/^[/]stop$/i.test(docc)) {
                 res.end('ok, stopped\n');
                 process.exit(0);
             }
-            else if (/^[/]started[?]?$/i.test(req.url)) {
+            else if (/^[/]started[?]?$/i.test(docc)) {
                 res.end('yes, started, all good\n');
             }
-            else if (/^[/]edit[?]/i.test(req.url)) {
-                editDoc(doc());
+            else if (editDocument) {
+                editDoc(documentName);
                 backToCaller();
             }
-            else if (/^[/]open[?]/i.test(req.url)) {
-                execFile('open', [doc()]);
+            else if (isFolder) {
+                execFile('open', [folderName]);
                 backToCaller();
             }
-            else {
-                fmtDoc(doc(), (body,type,code) => {
+            else if (isAppFile) {
+                res.writeHead(200, { 'Content-Type': mimetype(appFile) });
+                fs.createReadStream(`${__dirname}/viewer/${appFile}`).pipe(res);
+            }
+            else { // view document (default)
+                fmtDoc(docc, (body,type,code) => {
                     res.writeHead(code, { 'Content-Type': type });
                     res.end(body);
                 });
@@ -257,15 +278,17 @@ function fmtDoc(doc, cb) {
             .use(require(`markdown-it-anchor`))
             .use(require(`markdown-it-table-of-contents`));
 
-    const href = (cmd, docRef=doc) => `href='${SERVER.URL}/${cmd}?doc=${encodeURI(docRef)}'`;
+    //const href = (cmd, docRef=doc) => `href='${SERVER.URL}/${cmd}${encodeURI(docRef)}'`;
+    const href = (cmd, docRef=doc) => `href='/${cmd}${encodeURI(docRef)}'`;
 
-    const HEADER = `<a ${href('open', path.dirname(doc))} title='click to open its containing folder'>${doc}</a>
-                    <a edit-here>[edit]</a>
-                    <a ${href('edit')}>[edit with vscode]</a>`;
+    const HEADER = `<a edit-here title='click to edit it right here'>[edit]</a>
+                    <a ${href('edit-document')}>[edit with vscode]</a>
+                    <a ${href('open-folder', path.dirname(doc))}>[open containing folder]</a>`;
 
-    const FOOTER = `<a ${href('open', __dirname)} title='click to open that folder'>viewer is ${DOCLINK} v.${APP_VERSION}</a>`;
+    const FOOTER = `<a ${href('open-folder', __dirname)} title='click to open that folder'>viewer: ${DOCLINK} v.${APP_VERSION}</a>
+                    <a github-ref href='${GITHUB_PROJECT}' target=_blank>[get it on github]</a>`;
 
-    const html = fs.readFileSync(`${__dirname}/viewer.html`, { encoding: 'utf8'});
+    const html = require('./viewer/app.html');
 
     fs.readFile(doc, {encoding: 'utf8'}, (err, data) => {
         var type = 'text/plain', code = 200, resp = '';
@@ -277,8 +300,8 @@ function fmtDoc(doc, cb) {
             type = 'text/html';
             resp = mustache(html, {
                 HEADER,
-                MAIN_CONTENT: md.render('[[TOC]]\n\n' + data),
-                SOURCE_CONTENT: data,
+                MAIN_CONTENT: `<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + data),
+                EDITABLE_CONTENT: data,
                 FOOTER,
             });
         }
