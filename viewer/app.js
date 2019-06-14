@@ -1,42 +1,11 @@
-"use strict";
+"use strict"; // implied with imports below...
+
+import {log, onReady, dontLeavePageIf, onCtrlSave} from './app-utils.js';
+import {copyToClipboard, post} from './app-utils.js';
+import {qs, qsa, on, toggleAttr, attr} from './app-utils.js';
+
 
 // todo: convert to events emitter instead (to save,cancel, changed)
-
-
-const copyToClipboard = (function() {
-    const el = document.createElement('textarea');
-    window.addEventListener('load', () => {
-        document.body.appendChild(el);
-        el.setAttribute('clipboard-utility', '');
-    })
-    return str => {
-        el.value = str;
-        el.select();
-        document.execCommand('copy');
-    }    
-})();
-
-
-// helpers        
-const log = console.log.bind(console);
-log.error = console.error.bind(console);
-
-const qs = selector => document.querySelector(selector);
-const spl = parts => parts.split('@');
-const on = (what, listener) => { let [evt,sel] = spl(what); qs(sel).addEventListener(evt, listener); };
-const toggleAttr = what => { let [attr,sel] = spl(what); qs(sel).toggleAttribute(attr); };
-
-function attr(what, value) {
-    let [attr,sel] = spl(what);
-    if (value === true)
-        qs(sel).setAttribute(attr, '');
-    else if (typeof value === 'string')
-        qs(sel).setAttribute(attr, value);
-    else if (value === false || value === undefined || value === null)
-        qs(sel).removeAttribute(attr);
-    else 
-        console.error('unexpected attribute value', value);
-}
 
 const changesPending = (function() {
     var hasChanges = false
@@ -48,99 +17,84 @@ const changesPending = (function() {
     }
 })();
 
-function setLoadedContent(content) {
+function setLoadedContent(docInfo) {
 
-    qs('div[viewer]').innerHTML = content.html;
-    qs('textarea').value = content.plain;
+    const {error, html, plain} = docInfo;
 
-    changesPending(false); // since we're setting/resetting it
-
-    for (const code of document.querySelectorAll('code')) {
-        code.addEventListener('click', e => {
-            log('clicked', e, e.target.innerText);
-            copyToClipboard(e.target.innerText);
-        })
+    if (error) {
+        qs('div[viewer]').innerHTML = html || plain || error; // display it
+        attr('disabled@header', true); // disable editing
     }
-
-    const toc = qs('h2[toc]');
-    if (toc)
-        toc.addEventListener('click', () => toggleAttr('hide@div.table-of-contents'))
-    else
-        log('not markdown content', content);
+    else { 
+        // this document becomes the baseline
+        changesPending(false); 
+    
+        qs('div[viewer]').innerHTML = html;
+        qs('textarea').value = plain;
+    
+        for (const el of qsa('code')) {
+            el.setAttribute('title', 'click to copy to clipboard (ctrl-c)');
+            el.addEventListener('click', e => copyToClipboard(e.target.innerText))
+        }
+    
+        const toc = qs('h2[toc]');
+        if (toc)
+            toc.addEventListener('click', () => toggleAttr('hide@div.table-of-contents'))
+        else
+            log('not markdown content', content);    
+    }
 }
 
-function showDocument(docFile, originalContent) {
+function showDocument(docInfo) {
 
-    setLoadedContent(originalContent);
+    const {doc, error, html, plain} = docInfo;
 
-    attr('href@a[code-editor]', '/edit-document' + docFile);
-    attr('href@a[doc-folder]', '/open-folder' + docFile.replace(/[/][^/]+$/, '')); // get its folder
+    setLoadedContent(docInfo);
+
+    attr('href@a[code-editor]', '/edit-document' + doc);
+    attr('href@a[doc-folder]', '/open-folder' + doc.replace(/[/][^/]+$/, '')); // get its folder
 
     on('click@[edit-here]', () => toggleAttr('editing@body'));
     on('click@[view-formatted]', () => toggleAttr('editing@body'));
 
-    on('click@button[save]', saveShit);
+    on('click@button[save]', saveChanges);
 
-    const isMac = /mac/i.test(window.navigator.platform);
-
-    document.addEventListener('keydown', e => {
-        if (e.key === 's' && (isMac ? e.metaKey : e.ctrlKey)) {
-            e.preventDefault(); // important (else browser wants to save the page)
-            changesPending() && saveShit();
-        }
-    });
-
-    function saveShit() {
-        const updatedContent = qs('textarea').value;
-        fetch(`/save-document${docFile}`, { 
-            method: 'post',
-            body: updatedContent, // plain text? any conversions?
-        }).then(async resp => {
-            const ccb = await resp.json();
-            log('ok?', resp.status, ccb);
-            if (ccb.saved) {
-                setLoadedContent(originalContent = ccb);
-            }
-            else {
-                log('NOT SAVED');
-            }
-        })
-        .catch(err => {
-            log('error', err); // leave as is but make save/cancel visible again
-        })
-    }
-
+    onCtrlSave(() => changesPending() && saveChanges());
 
     // reset content
-    on('click@button[cancel]', () => setLoadedContent(originalContent));
-
-    
+    on('click@button[cancel]', () => setLoadedContent(docInfo));
 
     // keeping it simple...
     on('keydown@textarea', () => changesPending(true)); 
 
-    // lastly...
+    // lastly (nothing displayed until this)...
     attr('nothing-to-show@body', false);
+
+    function saveChanges() {
+        const updatedContent = qs('textarea').value;// plain text? any conversions?
+        post(`/save-document${doc}`, updatedContent).then(resp => resp.json())
+            .then(newDoc => 
+                newDoc.error ? log.error('NOT SAVED', newDoc) : setLoadedContent(docInfo = newDoc))
+            .catch(err => 
+                log.error('NOT SAVED', err));
+    }
 }
 
 // main initialization
-window.addEventListener('beforeunload', e => {
-    // as per: https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload        
-    if (changesPending()) {
-        e.preventDefault(); // Cancel the event
-        e.returnValue = ''; // Chrome requires returnValue to be set
-    }
-});
+onReady(() => {
 
-window.addEventListener('load', () => {
+    // don't let user leave if unsaved changes
+    dontLeavePageIf(changesPending);
 
-    //document.body.appendChild(el);
-
-
-    // the actual document
+    // which document?
     const doc = qs('meta[name=document]').content;
 
-    fetch(`/get-document${doc}`)
-        .then(async resp => (resp.status === 200) ? showDocument(doc, await resp.json()) : log.error('whoopsie - no good', resp))
-        .catch(err => log.error('no can do', err))
+    // get it...
+    fetch(`/get-document${doc}`).then(resp => resp.json())
+        .then(showDocument)
+        .catch(err => showDocument({
+            doc,
+            error: err.message || 'unknown error', 
+            html: `<h2>can't get document</h2><p>${err.message || 'unknown error'}</p>`
+        }));
 });

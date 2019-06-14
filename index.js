@@ -35,6 +35,7 @@ const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm in
 const DOCLINK_FOLDER = __dirname;
 const DOCLINK_VERSION = require('./package.json').version;
 
+
 // helpers ---
 const log = console.log.bind(console),
       path = require('path'),
@@ -46,6 +47,11 @@ const log = console.log.bind(console),
 const mustache = (str,vars) => Object.entries(vars).reduce((sofar,[k,v]) => sofar.replace(`{{${k}}}`,v), str);
 const sleep = (delayInMS, doAfter) => setTimeout(doAfter, delayInMS); // alt: sleep = delayMS => new Promise(resolve => setTimeout(resolve,delayMS)) 
 
+function htmlNoPrivateComments(html) {
+    // private comments start with '<!--- ' instead of '<!--' (3 dashes AND a space)
+    return html.replace(/\s*[<][!][-]{3,}\s+.*?\s+[-]{2,}[>]/g, ' ');
+}
+
 function httpGet(url) {
     return new Promise((resolve, reject) => {
         http.get(url, resp => {
@@ -56,12 +62,63 @@ function httpGet(url) {
     });
 }
 
+Object.defineProperty(http.ServerResponse.prototype, 'json', {
+    value(...args) {
+        const obj = args.pop(), // always last
+              code = args.pop() || 200;
+        this.writeHead(code, { 'Content-Type': 'application/json' });
+        this.end(JSON.stringify(obj));  
+    }
+});
+
+Object.defineProperty(Array.prototype, 'last', {
+    value() {
+        return this.length > 0 ? this[this.length - 1] : undefined;
+    }
+});
+
+function tryStaticFiles(res, ...files) { // last parm may be function to send first write(s): a "preamble" if static file is valid
+
+    return new Promise((resolve,reject) => {
+        const preamble = typeof files.last() === 'function' ? files.pop() 
+                : file => res.writeHead(200, { 'Content-Type': mimetype(file, utfType(file)) });
+        const file = files.shift(); // first one
+        fs.createReadStream(file)
+            .on('error', err => {
+                if (err.code === 'ENOENT') { // Error - NO [such] ENTry
+                    if (files.length)
+                        tryStaticFiles(res, ...files, preamble) // some recursion
+                            .then(resolve)
+                            .catch(reject);
+                    else 
+                        reject({notFound: true});
+                }
+                else {
+                    err.file = file; // which one failed
+                    reject(err);
+                }
+            })
+            .on('open', () => preamble(file)) // file is good so give caller chance to write something first (e.g. headers)
+            .on('end', () => resolve(file)) // pipe auto-ends res (https://nodejs.org/api/stream.html#stream_readable_pipe_destination_options)
+            .pipe(res);
+    });
+}
+
 // enables non-js requires: e.g. require('./text-based-file.css')
-`txt html css x.js`.split(' ') // use .x.js for template-based .js code (so won't interfere with require processing for normal modules)
+`txt html css x.js` // .x.js for template-based .js code (so won't interfere with require processing for normal modules)
+    .split(' ') 
     .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
 
-// https://www.npmjs.com/package/mime
-const mimetype = file => require('mime/lite').getType(file); // e.g. from 'filename.css' to 'text/css'
+// https://www.npmjs.com/package/mime (e.g. from 'filename.css' to 'text/css')
+const mimetype = (file,charset) => require('mime/lite').getType(file) + (charset ? `; charset=${charset}` : ``);
+const utfType = file => /[.](css|m?js|html)$/i.test(file) ? 'utf-8' : ''; // basically...
+
+// for when converting markdown to html
+const markdownIt = require(`markdown-it`),
+      md = new markdownIt()
+            .use(require(`markdown-it-anchor`))
+            .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
+
 
 // APP SETTINGS ---
 const VISUAL_CODE_EDITOR = '/usr/local/bin/code'; // must be an absolute path
@@ -222,9 +279,8 @@ function useAsViewer(doc) {
 
             const purl = url.parse(req.url, true),
                   docc = purl.pathname, // differentiate from cmd-line doc
-                  [isFolder, folderName] = docc.match(/^[/]open-folder([/].+)/) || [],
+                  [openFolder, folderName] = docc.match(/^[/]open-folder([/].+)/) || [],
                   [editDocument, documentName] = docc.match(/^[/]edit-document([/].+)/) || [],
-                  [isAppFile, appFile] = docc.match(/^[/](app[.](css|js))$/) || [],                  
                   [gettingDoc, docName] = docc.match(/^[/]get-document([/].+)/) || [],
                   [savingDoc, docNameToSave] = docc.match(/^[/]save-document([/].+)/) || [];;
             
@@ -247,37 +303,34 @@ function useAsViewer(doc) {
                 editDoc(documentName);
                 backToCaller();
             }
-            else if (isFolder) {
+            else if (openFolder) {
                 execFile('open', [folderName]);
                 backToCaller();
             }
-            else if (isAppFile) {
-                res.writeHead(200, { 'Content-Type': mimetype(appFile) });
-                fs.createReadStream(`${__dirname}/viewer/${appFile}`).pipe(res);
-            }
             else if (gettingDoc) {
-                log('getting', docName);
-                fmtDoc(docName).then(({html, plain}) => {
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({html,plain}));    
-                });
+                fmtDoc(docName).then(content => res.json(content));
             }
             else if (savingDoc) {
-                saveDocument(docNameToSave, req)
-                    .then(({html,plain}) => {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ saved: true, html, plain }));
-                    })
-                    .catch(err => {
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ saved: false, error: err.message }));
-                    })
+                saveDocument(docNameToSave, req) // never fails
+                    .then(updatedDoc => res.json(updatedDoc))
             }
-            else { // view document (default)
-                mainHtmlPage(docc, (body,type,code) => {
-                    res.writeHead(code, { 'Content-Type': type });
-                    res.end(body);
-                });
+            else {
+                tryStaticFiles(res, `${__dirname}/viewer${docc}`)
+                    .then(file => log('sent static file', file))
+                    .catch(err => {
+                        if (err.notFound) {                            
+                            mainHtmlPage(docc, (body,type,code) => {
+                                res.writeHead(code, { 'Content-Type': type });
+                                res.end(body);
+                                log('sent base page');
+                            });
+                        }
+                        else {
+                            log('file found but error sending', err);
+                            res.writeHead(500, { 'Content-Type': 'text/plain'});
+                            res.end('server error: ' + err.message);
+                        }
+                    })
             }
         });
           
@@ -295,20 +348,20 @@ function useAsViewer(doc) {
 }
 
 function saveDocument(filename, request) {
-    return new Promise((resolve,reject) => {
+    return new Promise(resolve => {
         const bodyParts = [];
         request
             .on('data', chunk => bodyParts.push(chunk))
             .on('end', () => {
-                const body = Buffer.concat(bodyParts).toString();
+                const plainBody = Buffer.concat(bodyParts).toString();
 
                 // save this TO FILE!!!
-                fs.writeFileSync(filename, body);
+                fs.writeFileSync(filename, plainBody); // default is utf-8 (what we want)
 
                 // lastly...
-                resolve(fmtDocMD(body)); // may already have been rejected if there was an error...
+                resolve(fmtDocMD(filename, plainBody)); // may already have been rejected if there was an error...
             })
-            .on('error', reject);
+            .on('error', err => resolve({ error: 'not saved: ' + err.message }));
     });
 }
 
@@ -316,32 +369,29 @@ function mainHtmlPage(DOCUMENT_FILE, cb) {
     // const html = require('./viewer/app.html'); // require does NOT reload on changes (do when dev complete)
     const html = fs.readFileSync(`${__dirname}/viewer/app.html`, 'utf8'); // while in dev mode
 
-    const resp = mustache(html, {
+    const resp = htmlNoPrivateComments(mustache(html, {
         DOCUMENT_FILE,
         DOCLINK,
         DOCLINK_VERSION,
         DOCLINK_FOLDER,
         GITHUB_PROJECT,
-    });
-    cb(resp, 'text/html', 200);
+        YEAR: new Date().getFullYear(),
+    }));
+    cb(resp, 'text/html; charset=utf-8', 200);
 }
 
-function fmtDocMD(plain) {
-    const markdownIt = require(`markdown-it`),
-          md = new markdownIt()
-            .use(require(`markdown-it-anchor`))
-            .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
-
-    return { plain, html:`<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + plain), };
+function fmtDocMD(doc, plain) {
+    // doc used as a self ref
+    return { doc, plain, html:`<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + plain), };
 }
 
 function fmtDoc(doc) {
     return new Promise(resolve => {
         fs.readFile(doc, 'utf8', (err, plain) => {
             if (err)
-                resolve({html:`<h2>can't read this file</h2><p>${err.message}</p>`, plain})
+                resolve({doc, error: err.message || 'unknown error', html:`<h2>can't read this file</h2><p>${err.message}</p>`})
             else
-                resolve(fmtDocMD(plain));
+                resolve(fmtDocMD(doc, plain));
         });    
     })
 }

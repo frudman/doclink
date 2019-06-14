@@ -1,3 +1,27 @@
+@charset "utf-8"; /* allows direct embed of unicode characters in this file, not just \code points */
+
+/* UNICODE SEARCH, TABLES:
+    http://www.fileformat.info/info/unicode/char/a.htm
+    http://www.fileformat.info/info/unicode/char/search.htm
+
+    https://dev.w3.org/html5/html-author/charref
+
+    http://www.unicode.org/charts/
+    https://en.wikipedia.org/wiki/List_of_Unicode_characters (many; most? all?)
+
+    APPLE CMD: Miscellaneous Technical: U+2318 (2387)
+
+    Miscellaneous Symbols
+    2611  check mark
+    2673-B for RECYCLING
+
+    https://en.wikipedia.org/wiki/Dingbat
+
+    https://www.toptal.com/designers/htmlarrows/symbols/
+
+    http://www.fileformat.info/info/unicode/char/2750/index.htm
+*/
+
 a { text-decoration: none; cursor: pointer; }
 a:hover { text-decoration: underline; }
 
@@ -13,57 +37,71 @@ div[fullpage] {
     height: 100%; 
 }
 
+/* various states of the page: nothing-to-show, editing/not, pending-changes/not */
+body[nothing-to-show] header { display: none; }
+
+body[editing] header [viewing] { display: none; }
+body[editing] main [viewer] { display: none; }
+
+body[editing][pending-changes] header [view-formatted] { display: none; }
+body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; }
+body[editing]:not([pending-changes]) main [editor] [update] { visibility: hidden; }
+
+body:not([editing]) header [editing] { display: none; }
+body:not([editing]) main [editor] { display: none; }
+
 header {
     background: yellow;
     padding: 2px 0 1px 5px;
 }
 
 header a { margin-right: 15px; }
-
-body[editing] header [viewing] { display: none; }
-body:not([editing]) header [editing] { display: none; }
-
-body[editing][pending-changes] header [view-formatted] { display: none; }
-body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; }
-
+header[disabled] { display: none; }
 
 footer {
     background: darkgreen;
     color: white;
     font-size: .9em;
-    padding: 0 0 0 5px;
+    padding: 0 5px 0 5px;
+
+    display: flex;
+    flex-direction: row;
 }
 
-footer a { color: white; }
+footer a { color: white; margin-right: 20px; }
+footer span { flex: 1; text-align: right; }
 
 main {
-    flex: 1; /* myself */
-    overflow: auto;
+    flex: 1; /* myself: take up everything after header/footer */
+    overflow: auto; /* constrains display to viewport, with a scrollbar if needed; else long page - overflow displayed */
     margin: 0;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
+
+main [viewer] {
     padding: 0 40px;
-
-    /* for my kids */
-    display: flex;
-    flex-direction: column;
 }
 
-div[editor] {
+main [editor] {
     flex: 1; /* myself */
-    padding: 15px 0 10px 0;
+    padding: 15px 40px 10px 40px;
 
     /* for my kids */
     display: flex;
     flex-direction: column;
 }
 
-div[editor] textarea {
+main [editor] textarea {
     flex: 1; /* myself */
     font-family: monospace;
     resize: none; /* hmmm, wonder what this does? :-) */
     outline: none; /* no glowing outline on focus */
 }
 
-div[editor] button {
+button {
     border: none;
     padding: 5px;
     cursor: pointer;
@@ -71,52 +109,77 @@ div[editor] button {
     margin-top: 5px;
     font-size: 1.2em;
     outline: none;
+    margin-right: 20px; 
 }
-
-body[editing] main div[viewer] { display: none; }
-body:not([editing]) main div[editor] { display: none; }
-body[nothing-to-show] header { display: none; }
-
-body:not([pending-changes]) div[update] { visibility: hidden; }
 
 button[save] { background: green; }
-button[cancel] { background: red; margin-left: 20px; }
+button[cancel] { background: red; }
 
-h2[toc] {
-    cursor: pointer;
-    color: green;
-}
-
-h2[toc]::after {
-    font-size: .7em;
-    content: ' \25BE';
-}
-
-a[github-ref] { padding-left: 40px; }
-
-div.table-of-contents[hide] { display: none; }
-
-code:hover { font-weight: bold; cursor: pointer; }
-code:hover::after {
-    /* LOWER RIGHT DROP-SHADOWED WHITE SQUARE */
-    /* sort of a document; https://www.toptal.com/designers/htmlarrows/symbols/ */
-    content: " \02750"; /* todo: find better one (see aws ec2 copies) */
+/* hint that copy text is available with a click */
+code:hover { font-weight: bold; cursor: pointer; font-size: 1.1em; }
+code:hover::after { /* todo: find better one (see aws ec2 copies) */
+    content: " \2750"; /* UPPER RIGHT DROP-SHADOWED WHITE SQUARE */
 }
 
 [clipboard-utility] { 
     
     /* FRAGILE CODE: warning!
        - used for copy-to-clipboard feature (on click)
-       - cannot use 'display: none;' because, at least on chrome on mac, this prevents clipboard-copy feature
-       - this is likely a security feature; below is an alternative
-       - also looks like 'border: none;' breaks it, so don't use it; might be that the textarea needs a non-zero size to be considered legitimate
-         for clipboard operations
+       - cannot use 'display: none;' because this prevents clipboard-copy feature (at least on chrome on mac)
+        - this is likely a security feature; below is an alternative
+       - also seems like 'border: none;' breaks it, so don't use it; 
+        - might be that to be considered legitimate for clipboard operations, the textarea needs of non-zero size
     */
 
     position: absolute;
     left: -9999999px; /* way the fuck off broadway */
     width: 0; /* belt */
     height: 0; /* suspender */
-    margin: 0;
-    padding: 0;
+    margin: 0; /* another belt */
+    padding: 0; /* another suspender */
 }
+
+div[minimal-toaster] {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: rgba(32, 81, 111, 0.85);
+    color: white;
+    padding: 10px 15px;
+    display: none;
+    border-radius: 10px;
+}
+
+div[minimal-toaster] h1 { font-size: 1.1em;  }
+div[minimal-toaster] h2 { font-size: 1.1em;  }
+div[minimal-toaster] p { font-size: 1.1em;  }
+
+div[minimal-toaster][visible] { display: block; }
+
+/* styles for markdown display */
+div.table-of-contents[hide] { display: none; }
+
+div[viewer] p { margin: 4px 0 2px 0; }
+div[viewer] h1 { font-size: 1.1em; }
+div[viewer] h2 { 
+    font-size: 1em; 
+    border-bottom: solid 1px gray;
+    margin-bottom: 5px;
+}
+
+div[viewer] h2[toc] {
+    cursor: pointer;
+    color: green;
+    border: none;
+}
+
+div[viewer] h2[toc]::after {
+    font-size: .7em;
+    content: ' \25BE'; /* down arrow */
+}
+
+div[viewer] ul { padding-left: 0; margin-top: 5px; }
+div[viewer] ul ul { padding-left: 15px; }
+div[viewer] ul ul ul { padding-left: 30px; }
+div[viewer] ul ul ul ul { padding-left: 45px; }
+div[viewer] ul ul ul ul ul { padding-left: 60px; }

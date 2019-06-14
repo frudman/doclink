@@ -1,9 +1,24 @@
 <!doctype html>
-<html>
+<html lang='en'>
     <head>
-        <meta name='document' content='{{DOCUMENT_FILE}}'>
+        <meta charset="utf-8">
+        <meta name=viewport content="width=device-width,initial-scale=1.0">
+        <link rel=icon href="/favicon.png"> 
+
+        <meta name=document content="{{DOCUMENT_FILE}}">
+
         <link rel=stylesheet href=/app.css>
-        <script src=/app.js></script>
+        <script type=module src=/app.js></script>
+
+        <!--- read: https://www.w3.org/International/questions/qa-html-encoding-declarations -->
+        <!--- also: https://developer.mozilla.org/en-US/docs/Mozilla/Mobile/Viewport_meta_tag -->
+        <!--- also: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta -->
+        <!--- also for css: https://www.w3.org/International/questions/qa-css-charset -->
+
+        <!--- unicode chars: https://community.giffgaff.com/t5/Tips-Guides/Unicode-characters-to-copy-and-paste/td-p/1978667 -->
+        <!--- ALSO: https://www.copypastecharacter.com/ -->
+
+        <!--- favicon.png created from src-appicon with https://www.favikon.com -->
     </head>
     <body nothing-to-show>
         <div fullpage>
@@ -22,12 +37,13 @@
                 <div viewer></div>
                 <div editor>
                     <textarea></textarea>
-                    <div update><button save>save</button><button cancel>cancel</button></div>
+                    <div update><button save>✓save</button><button cancel>✗cancel</button></div>
                 </div>
             </main>
             <footer>
                 <a href='/open-folder{{DOCLINK_FOLDER}}' title='click to open that folder'>using: {{DOCLINK}} v.{{DOCLINK_VERSION}}</a>
                 <a href='{{GITHUB_PROJECT}}' target=_blank>[see it on github]</a>
+                <span>copyright © {{YEAR}} freddy rudman</span>
             </footer>
         </div>
     </body>
