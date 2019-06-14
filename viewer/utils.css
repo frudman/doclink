@@ -1,0 +1,68 @@
+@charset "utf-8"; /* allows direct embed of unicode characters in this file, not just \code points */
+
+/* UNICODE SEARCH, TABLES:
+    http://www.fileformat.info/info/unicode/char/a.htm
+    http://www.fileformat.info/info/unicode/char/search.htm
+
+    https://dev.w3.org/html5/html-author/charref
+
+    http://www.unicode.org/charts/
+    https://en.wikipedia.org/wiki/List_of_Unicode_characters (many; most? all?)
+
+    APPLE CMD: Miscellaneous Technical: U+2318 (2387)
+
+    Miscellaneous Symbols
+    2611  check mark
+    2673-B for RECYCLING
+
+    https://en.wikipedia.org/wiki/Dingbat
+
+    https://www.toptal.com/designers/htmlarrows/symbols/
+
+    http://www.fileformat.info/info/unicode/char/2750/index.htm
+*/
+
+
+a { text-decoration: none; cursor: pointer; }
+a:hover { text-decoration: underline; }
+
+/* hint that copy text is available with a click */
+code:hover { font-weight: bold; cursor: pointer; font-size: 1.1em; }
+code:hover::after { /* todo: find better one (see aws ec2 copies) */
+    content: " \2750"; /* UPPER RIGHT DROP-SHADOWED WHITE SQUARE */
+}
+
+[clipboard-utility] { 
+    
+    /* FRAGILE CODE: warning!
+       - used for copy-to-clipboard feature (on click)
+       - cannot use 'display: none;' because this prevents clipboard-copy feature (at least on chrome on mac)
+        - this is likely a security feature; below is an alternative
+       - also seems like 'border: none;' breaks it, so don't use it; 
+        - might be that to be considered legitimate for clipboard operations, the textarea needs of non-zero size
+    */
+
+    position: absolute;
+    left: -9999999px; /* way the fuck off broadway */
+    width: 0; /* belt */
+    height: 0; /* suspender */
+    margin: 0; /* another belt */
+    padding: 0; /* another suspender */
+}
+
+div[minimal-toaster] {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: rgba(32, 81, 111, 0.85);
+    color: white;
+    padding: 10px 15px;
+    display: none;
+    border-radius: 10px;
+}
+
+div[minimal-toaster] h1 { font-size: 1.1em;  }
+div[minimal-toaster] h2 { font-size: 1.1em;  }
+div[minimal-toaster] p { font-size: 1.1em;  }
+
+div[minimal-toaster][visible] { display: block; }

@@ -1,0 +1,93 @@
+@charset "utf-8"; /* allows direct embed of unicode characters in this file, not just \code points */
+
+@import './utils.css';
+
+html, body {
+    background: wheat;
+    margin: 0;
+    height: 100%;
+}
+
+div[fullpage] {
+    display: flex;
+    flex-direction: column;
+    height: 100%; 
+}
+
+/* various states of the page: nothing-to-show, editing/not, pending-changes/not */
+body[nothing-to-show] header { display: none; }
+
+body[editing] header [viewing] { display: none; }
+body[editing] main [viewer] { display: none; }
+
+body[editing][pending-changes] header [view-formatted] { display: none; }
+body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; }
+body[editing]:not([pending-changes]) main [editor] [update] { visibility: hidden; }
+
+body:not([editing]) header [editing] { display: none; }
+body:not([editing]) main [editor] { display: none; }
+
+header {
+    background: yellow;
+    padding: 2px 0 1px 5px;
+}
+
+header a { margin-right: 15px; }
+header[disabled] { display: none; }
+
+footer {
+    background: darkgreen;
+    color: white;
+    font-size: .9em;
+    padding: 0 5px 0 5px;
+
+    display: flex;
+    flex-direction: row;
+}
+
+footer a { color: white; margin-right: 20px; }
+footer span { flex: 1; text-align: right; }
+
+main {
+    flex: 1; /* myself: take up everything after header/footer */
+    overflow: auto; /* constrains display to viewport, with a scrollbar if needed; else long page - overflow displayed */
+    margin: 0;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
+
+main [viewer] {
+    padding: 0 40px;
+}
+
+main [editor] {
+    flex: 1; /* myself */
+    padding: 15px 40px 10px 40px;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
+
+main [editor] textarea {
+    flex: 1; /* myself */
+    font-family: monospace;
+    resize: none; /* hmmm, wonder what this does? :-) */
+    outline: none; /* no glowing outline on focus */
+}
+
+button {
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+    color: white;
+    margin-top: 5px;
+    font-size: 1.2em;
+    outline: none;
+    margin-right: 20px; 
+}
+
+button[save] { background: green; }
+button[cancel] { background: red; }

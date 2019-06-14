@@ -38,6 +38,7 @@ export function dontLeavePageIf(dontLeave) {
 
 export const toaster = (function(TOASTER_FADE_IN_MS) {
     // really minimal toast
+    // MUCH NICER ONE (and simple also, mostly css): https://codepen.io/kipp0/pen/pPNrrj
     const el = crEl('div');
     onReady(() => {
         document.body.appendChild(el);
