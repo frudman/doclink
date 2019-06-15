@@ -7,6 +7,10 @@
 // - ln -s `pwd`/index.js /usr/local/bin/doclink
 // - chmod +x index.js 
 
+// if already running, stop it with: curl localhost:56789/stop
+// start manually:
+// - from this folder: node . start
+
 // pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
 // restart finder: sudo killall Finder
 
@@ -35,89 +39,18 @@ const DOCLINK = `/usr/local/bin/doclink`; // as installed by npm (what if npm in
 const DOCLINK_FOLDER = __dirname;
 const DOCLINK_VERSION = require('./package.json').version;
 
+const DEV_MODE = true; // keep true while changing viewer/app.html
+const YEAR = new Date().getFullYear();
+
 
 // helpers ---
-const log = console.log.bind(console),
-      path = require('path'),
+const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles, markdown } = require('./utils');
+
+const path = require('path'),
       fs = require('fs'),
       http = require('http'),
       url = require('url'),
       { execFile, execFileSync } = require('child_process');
-
-const mustache = (str,vars) => Object.entries(vars).reduce((sofar,[k,v]) => sofar.replace(`{{${k}}}`,v), str);
-const sleep = (delayInMS, doAfter) => setTimeout(doAfter, delayInMS); // alt: sleep = delayMS => new Promise(resolve => setTimeout(resolve,delayMS)) 
-
-function htmlNoPrivateComments(html) {
-    // private comments start with '<!--- ' instead of '<!--' (3 dashes AND a space)
-    return html.replace(/\s*[<][!][-]{3,}\s+.*?\s+[-]{2,}[>]/g, ' ');
-}
-
-function httpGet(url) {
-    return new Promise((resolve, reject) => {
-        http.get(url, resp => {
-            let data = '';
-            resp.on('data', chunk => data += chunk);
-            resp.on('end', () => resolve(data));
-        }).on("error", reject);
-    });
-}
-
-Object.defineProperty(http.ServerResponse.prototype, 'json', {
-    value(...args) {
-        const obj = args.pop(), // always last
-              code = args.pop() || 200;
-        this.writeHead(code, { 'Content-Type': 'application/json' });
-        this.end(JSON.stringify(obj));  
-    }
-});
-
-Object.defineProperty(Array.prototype, 'last', {
-    value() {
-        return this.length > 0 ? this[this.length - 1] : undefined;
-    }
-});
-
-function tryStaticFiles(res, ...files) { // last parm may be function to send first write(s): a "preamble" if static file is valid
-
-    return new Promise((resolve,reject) => {
-        const preamble = typeof files.last() === 'function' ? files.pop() 
-                : file => res.writeHead(200, { 'Content-Type': mimetype(file, utfType(file)) });
-        const file = files.shift(); // first one
-        fs.createReadStream(file)
-            .on('error', err => {
-                if (err.code === 'ENOENT') { // Error - NO [such] ENTry
-                    if (files.length)
-                        tryStaticFiles(res, ...files, preamble) // some recursion
-                            .then(resolve)
-                            .catch(reject);
-                    else 
-                        reject({notFound: true});
-                }
-                else {
-                    err.file = file; // which one failed
-                    reject(err);
-                }
-            })
-            .on('open', () => preamble(file)) // file is good so give caller chance to write something first (e.g. headers)
-            .on('end', () => resolve(file)) // pipe auto-ends res (https://nodejs.org/api/stream.html#stream_readable_pipe_destination_options)
-            .pipe(res);
-    });
-}
-
-// enables non-js requires: e.g. require('./text-based-file.css')
-`txt html css x.js` // .x.js for template-based .js code (so won't interfere with require processing for normal modules)
-    .split(' ') 
-    .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
-
-// https://www.npmjs.com/package/mime (e.g. from 'filename.css' to 'text/css')
-const mimetype = (file,charset) => require('mime/lite').getType(file) + (charset ? `; charset=${charset}` : ``);
-const utfType = file => /[.](css|m?js|html)$/i.test(file) ? 'utf-8' : ''; // basically...
-
-// for when converting markdown to html
-const markdownIt = require(`markdown-it`),
-      md = new markdownIt()
-            .use(require(`markdown-it-anchor`))
-            .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
 
 
 // APP SETTINGS ---
@@ -156,19 +89,6 @@ const commonAppIcons = `${__dirname}/macos-appicon.icns`;
 const commonInfoPlist = `${__dirname}/macos-info.plist`;
 
 //#endregion
-
-if (process.argv.length === 3) {
-    if (process.argv[2] === 'install')
-        installDocLink();
-    else if (process.argv[2] === 'stop')
-        httpGet(`${SERVER.URL}/stop`);
-    else // last arg is doc to be linked (i.e. given a desktop ref)
-        linkDocument(process.argv[2]); // ~/... auto converted to /Users/frederic/... by shell
-} 
-else if (process.argv.length === 4 && process.argv[2] === 'viewer')
-    useAsViewer(process.argv[3]); // last arg is doc to be viewed
-else
-    log('usage: doclink (file-to-be-viewed.md | install | stop)');
 
 async function installDocLink() {
 
@@ -225,7 +145,7 @@ function createAppIcons(src, dst) {
             else {
                 log('all icons generated; removing ' + workFolder);
                 execFileSync('rm', ['-rf', workFolder]);
-                sleep(1000, resolve); // WORKAROUND from WHOAAA!!! above (not clear how long to wait: 1s seems to work)
+                sleep(1000).then(resolve); // WORKAROUND from WHOAAA!!! above (not clear how long to wait: 1s seems to work)
             }
         });
     })
@@ -260,29 +180,30 @@ async function linkDocument(docFile, destDir = `${process.env.HOME}/Desktop`) {
     log(`created app ${name} for ${file}\nmac app: ${appPgm}`);
 }
 
-function useAsViewer(doc) {
-                
-    var stickAround = false; // true if/when server is also started (i.e. first time)
-    
-    function showDocument() {
-        execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
-                err ? process.exit(19) : stickAround || process.exit(0);
-        });
-    }
-    
-    function editDoc(doc) {
-        execFile(VISUAL_CODE_EDITOR, [doc]);
-    }
+function startLocalServer() {
 
-    function startLocalServer() {
-        const server = http.createServer((req, res) => {
+    // a server always runs after calling this method
+    // this method returns [a promise] whether the caller (a process) should:
+    // - stick around (true) because server was launched by us (and must remain live for others)
+    // - exit after done (false) because server launched by someone else so we can exit when our task is done
+
+    // is there an instance already started?
+    return httpGet(SERVER.URL + '/started?')
+        .then(() => false) // yes, already running, no need for us to stick around
+        .catch(err => { // nope...
+            startServer(); // ...so let's start one now...
+            return true; // ...then let caller know to stick around after its task is done
+        }); 
+
+    function startServer() {
+        http.createServer((req, res) => {
 
             const purl = url.parse(req.url, true),
-                  docc = purl.pathname, // differentiate from cmd-line doc
-                  [openFolder, folderName] = docc.match(/^[/]open-folder([/].+)/) || [],
-                  [editDocument, documentName] = docc.match(/^[/]edit-document([/].+)/) || [],
-                  [gettingDoc, docName] = docc.match(/^[/]get-document([/].+)/) || [],
-                  [savingDoc, docNameToSave] = docc.match(/^[/]save-document([/].+)/) || [];;
+                urlPath = purl.pathname, // differentiate from cmd-line doc
+                [openFolder, folderNameToOpen] = urlPath.match(/^[/]open-folder([/].+)/) || [],
+                [editDocument, docNameToEdit] = urlPath.match(/^[/]edit-document([/].+)/) || [],
+                [gettingDoc, docName] = urlPath.match(/^[/]get-document([/].+)/) || [],
+                [savingDoc, docNameToSave] = urlPath.match(/^[/]save-document([/].+)/) || [];;
             
             // note: error in nodejs docs
             // - ref: https://nodejs.org/dist/latest-v12.x/docs/api/http.html#http_response_writehead_statuscode_statusmessage_headers
@@ -291,20 +212,20 @@ function useAsViewer(doc) {
 
             // when must redirect to itself (else page clicked on would show nothing after click)
             const backToCaller = () => { res.writeHead(302, { Location: req.headers.referer }); res.end(); }
-    
-            if (/^[/]stop$/i.test(docc)) {
+
+            if (/^[/]stop$/i.test(urlPath)) {
                 res.end('ok, stopped\n');
                 process.exit(0);
             }
-            else if (/^[/]started[?]?$/i.test(docc)) {
+            else if (/^[/]started[?]?$/i.test(urlPath)) {
                 res.end('yes, started, all good\n');
             }
             else if (editDocument) {
-                editDoc(documentName);
+                execFile(VISUAL_CODE_EDITOR, [docNameToEdit]);
                 backToCaller();
             }
             else if (openFolder) {
-                execFile('open', [folderName]);
+                execFile('open', [folderNameToOpen]); // todo: works on Macs (linux? windows? probably not...)
                 backToCaller();
             }
             else if (gettingDoc) {
@@ -312,14 +233,14 @@ function useAsViewer(doc) {
             }
             else if (savingDoc) {
                 saveDocument(docNameToSave, req) // never fails
-                    .then(updatedDoc => res.json(updatedDoc))
+                    .then(updatedResults => res.json(updatedResults))
             }
             else {
-                tryStaticFiles(res, `${__dirname}/viewer${docc}`)
+                tryStaticFiles(res, `${__dirname}/viewer${urlPath}`)
                     .then(file => log('sent static file', file))
                     .catch(err => {
                         if (err.notFound) {                            
-                            mainHtmlPage(docc, (body,type,code) => {
+                            mainHtmlPage(urlPath, (body,type,code) => {
                                 res.writeHead(code, { 'Content-Type': type });
                                 res.end(body);
                                 log('sent base page');
@@ -332,19 +253,19 @@ function useAsViewer(doc) {
                         }
                     })
             }
-        });
-          
-        server.listen(SERVER.PORT, SERVER.HOSTNAME, () => {
+        }).listen(SERVER.PORT, SERVER.HOSTNAME, () => {
             log(`doclink server running as ${SERVER.URL}`);
-            stickAround = true;
-            showDocument();
         });
     }
-    
-    // is there an instance already started?
-    httpGet(SERVER.URL + '/started?')
-        .then(showDocument) // yep, so use that one
-        .catch(startLocalServer); // nope, so let's start one now
+}
+
+function useAsViewer(doc) {
+    doc && startLocalServer().then(stickAround => execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
+        // if error launching browser, exit with a distinct error code (19!) [killing server as well, if it was launched here]
+        // if no error, exit if only launched browser (running on its own, so we're done)
+        // if no error, do NOT exit if we also launched the server (keeps it available for subsequent requests from other docs)
+        err ? process.exit(19) : stickAround || process.exit(0);
+    }));
 }
 
 function saveDocument(filename, request) {
@@ -365,33 +286,70 @@ function saveDocument(filename, request) {
     });
 }
 
-function mainHtmlPage(DOCUMENT_FILE, cb) {
-    // const html = require('./viewer/app.html'); // require does NOT reload on changes (do when dev complete)
-    const html = fs.readFileSync(`${__dirname}/viewer/app.html`, 'utf8'); // while in dev mode
+const mainHtmlPage = (function(dev) {
+    if (dev)
+        return (DOCUMENT_FILE, cb) => {
+            const html = fs.readFileSync(`${__dirname}/viewer/app.html`, 'utf8'); // re-reads it EVERY TIME
 
-    const resp = htmlNoPrivateComments(mustache(html, {
-        DOCUMENT_FILE,
-        DOCLINK,
-        DOCLINK_VERSION,
-        DOCLINK_FOLDER,
-        GITHUB_PROJECT,
-        YEAR: new Date().getFullYear(),
-    }));
-    cb(resp, 'text/html; charset=utf-8', 200);
-}
+            // full rendering every time
+            const resp = htmlNoPrivateComments(mustache(html, {
+                DOCUMENT_FILE,
+                DOCLINK,
+                DOCLINK_VERSION,
+                DOCLINK_FOLDER,
+                GITHUB_PROJECT,
+                YEAR: new Date().getFullYear(),
+            }));
+
+            cb(resp, 'text/html; charset=utf-8', 200);
+        };
+    else {
+        const html = require('./viewer/app.html'); // NOT reloaded if changed (good for prod; do when dev complete)
+
+        // do most of the rendering here...
+        const resp = htmlNoPrivateComments(mustache(html, {
+            //DOCUMENT_FILE,
+            DOCLINK,
+            DOCLINK_VERSION,
+            DOCLINK_FOLDER,
+            GITHUB_PROJECT,
+            YEAR: new Date().getFullYear(),
+        }));
+
+        // last bit of rendering here
+        return (DOCUMENT_FILE, cb) => cb(mustache(resp, { DOCUMENT_FILE }, 'text/html; charset=utf-8', 200));
+    }
+})(DEV_MODE);
 
 function fmtDocMD(doc, plain) {
     // doc used as a self ref
-    return { doc, plain, html:`<h2 toc>table of content</h2>` + md.render('[[TOC]]\n\n' + plain), };
+    return { doc, plain, html:`<h2 toc>table of content</h2>` + markdown.render('[[TOC]]\n\n' + plain), };
 }
 
 function fmtDoc(doc) {
-    return new Promise(resolve => {
+    return new Promise(resolve => { // never fails
         fs.readFile(doc, 'utf8', (err, plain) => {
-            if (err)
-                resolve({doc, error: err.message || 'unknown error', html:`<h2>can't read this file</h2><p>${err.message}</p>`})
-            else
-                resolve(fmtDocMD(doc, plain));
+            resolve(err ? {doc, error: err.message || 'unknown error', html:`<h2>can't read this file</h2><p>${err.message}</p>`}
+                        : fmtDocMD(doc, plain));
         });    
     })
 }
+
+// --- From command line ---
+
+const cli = process.argv; // for clarity
+
+if (cli.length === 3) {
+    if (cli[2] === 'install')
+        installDocLink();
+    else if (cli[2] === 'start')
+        startLocalServer();
+    else if (cli[2] === 'stop')
+        httpGet(`${SERVER.URL}/stop`);
+    else // last arg is doc to be linked (i.e. given a desktop ref)
+        linkDocument(cli[2]); // ~/... auto converted to /Users/frederic/... by shell
+} 
+else if (cli.length === 4 && cli[2] === 'viewer')
+    useAsViewer(cli[3]); // last arg is doc to be viewed
+else
+    log('usage: doclink (file-to-be-viewed.md | install | start | stop)');
