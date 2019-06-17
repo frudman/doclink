@@ -20,12 +20,17 @@ body[nothing-to-show] header { display: none; }
 body[editing] header [viewing] { display: none; }
 body[editing] main [viewer] { display: none; }
 
-body[editing][pending-changes] header [view-formatted] { display: none; }
-body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; }
-body[editing]:not([pending-changes]) main [editor] [update] { visibility: hidden; }
+/*body[editing][pending-changes] header [view-formatted] { display: none; }
+ body[editing]:not([pending-changes]) header [save-or-cancel] { display: none; } */
+
+body[editing]:not([pending-changes]) main [update] { visibility: hidden; }
+body[editing][pending-changes] main [update] { visibility: visible; }
 
 body:not([editing]) header [editing] { display: none; }
 body:not([editing]) main [editor] { display: none; }
+
+xxbody:not([editing])[pending-changes] main [update] { display: block; visibility: visible; }
+body:not([editing]):not([pending-changes]) main [update] { display: none; }
 
 header {
     background: yellow;
@@ -60,6 +65,9 @@ main {
 
 main [viewer] {
     padding: 0 40px;
+
+    flex: 1;
+    overflow: auto;
 }
 
 main [editor] {
@@ -71,11 +79,15 @@ main [editor] {
     flex-direction: column;
 }
 
-main [editor] textarea {
-    flex: 1; /* myself */
-    font-family: monospace;
-    resize: none; /* hmmm, wonder what this does? :-) */
-    outline: none; /* no glowing outline on focus */
+main [update] {
+    display: flex;
+    flex-direction: row;
+    padding: 5px 40px;
+}
+
+body:not([editing])[pending-changes] main [update] {
+    border-top: solid 1px red;
+    background: darkorange;
 }
 
 button {
@@ -83,7 +95,7 @@ button {
     padding: 5px;
     cursor: pointer;
     color: white;
-    margin-top: 5px;
+    xxmargin-top: 5px;
     font-size: 1.2em;
     outline: none;
     margin-right: 20px; 

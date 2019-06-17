@@ -2,30 +2,3 @@
 
 @import './basic.css';
 
-/* styles for markdown display */
-div.table-of-contents[hide] { display: none; }
-
-div[viewer] p { margin: 4px 0 2px 0; }
-div[viewer] h1 { font-size: 1.1em; }
-div[viewer] h2 { 
-    font-size: 1em; 
-    border-bottom: solid 1px gray;
-    margin-bottom: 5px;
-}
-
-div[viewer] h2[toc] {
-    cursor: pointer;
-    color: green;
-    border: none;
-}
-
-div[viewer] h2[toc]::after {
-    font-size: .7em;
-    content: ' \25BE'; /* down arrow */
-}
-
-div[viewer] ul { padding-left: 0; margin-top: 5px; }
-div[viewer] ul ul { padding-left: 15px; }
-div[viewer] ul ul ul { padding-left: 30px; }
-div[viewer] ul ul ul ul { padding-left: 45px; }
-div[viewer] ul ul ul ul ul { padding-left: 60px; }

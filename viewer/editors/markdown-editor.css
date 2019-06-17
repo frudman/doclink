@@ -1,0 +1,95 @@
+/* styles for markdown display */
+
+body[hide-table-of-content] div[md-doc] div[toc] div { display: none; }
+
+[collapsed] { display: none; }
+
+/* hint that <code> text can be clipboard-copied on click */
+code:hover {
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.1em;
+}
+
+code:hover::after { 
+    content: " \2750";
+}
+
+div[tmp] pre { 
+    white-space: pre-wrap;
+}
+
+div[md-doc] h1, div[md-doc] h2, div[md-doc] h3, div[md-doc] h4, div[md-doc] h5, div[md-doc] h6 {
+    cursor: pointer;
+}
+ 
+div[md-doc] div[toc] {
+
+    /* this is TOOLBOX: can be top/right 0 and be upper corner */
+    /* need header height to allow for "hanging" toolbox e.g. for text-editor */
+
+
+    position: fixed;
+    right: 30px;
+    background: beige;
+    padding: 8px; /*0 10px 15px 10px;*/
+
+    border-radius: 5px;
+}
+
+div[md-doc] div[toc] a { 
+    flex: 1;
+    display: block; 
+}
+
+div[md-doc] div[toc] h2 { 
+    cursor: pointer; 
+    margin: 0 0 6px 0; 
+}
+div[md-doc] div[toc] h2:hover:after {
+    font-size: .7em;
+    content: ' \25B5'; /* up arrow; also B4 for black: https://www.unicode.org/charts/PDF/U25A0.pdf */
+}
+
+body[hide-table-of-content] div[md-doc] div[toc] h2:hover:after {
+    content: ' \25BF'; /* same as BE but bordered only down arrow */
+}
+
+textarea[markdown-editor] {
+    flex: 1; 
+    font-family: monospace;
+    resize: none;
+    outline: none; /* no glowing outline on focus */
+}
+
+
+div[md-doc] div[toc] a[toc-0] { padding-left: 0; }
+div[md-doc] div[toc] a[toc-1] { padding-left: 15px;}
+div[md-doc] div[toc] a[toc-2] { padding-left: 30px;}
+div[md-doc] div[toc] a[toc-3] { padding-left: 45px;}
+div[md-doc] div[toc] a[toc-4] { padding-left: 60px;}
+div[md-doc] div[toc] a[toc-5] { padding-left: 75px;}
+
+
+
+div.table-of-contents[hide] { display: none; }
+
+div[viewer] p { margin: 4px 0 2px 0; }
+div[viewer] h1 { font-size: 1.1em; }
+div[viewer] h2 { 
+    font-size: 1em; 
+    border-bottom: solid 1px gray;
+    margin-bottom: 5px;
+}
+
+div[viewer] h2[toc] {
+    cursor: pointer;
+    color: green;
+    border: none;
+}
+
+div[viewer] ul { padding-left: 0; margin-top: 5px; }
+div[viewer] ul ul { padding-left: 15px; }
+div[viewer] ul ul ul { padding-left: 30px; }
+div[viewer] ul ul ul ul { padding-left: 45px; }
+div[viewer] ul ul ul ul ul { padding-left: 60px; }

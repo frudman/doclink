@@ -26,12 +26,6 @@
 a { text-decoration: none; cursor: pointer; }
 a:hover { text-decoration: underline; }
 
-/* hint that copy text is available with a click */
-code:hover { font-weight: bold; cursor: pointer; font-size: 1.1em; }
-code:hover::after { /* todo: find better one (see aws ec2 copies) */
-    content: " \2750"; /* UPPER RIGHT DROP-SHADOWED WHITE SQUARE */
-}
-
 [clipboard-utility] { 
     
     /* FRAGILE CODE: warning!

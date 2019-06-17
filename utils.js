@@ -84,7 +84,6 @@ const markdownIt = require(`markdown-it`),
         .use(require(`markdown-it-anchor`))
         .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
 
-
 module.exports = {
     log, 
     mustache,
@@ -94,6 +93,6 @@ module.exports = {
     tryStaticFiles,
     mimetype,
     utfType,
-    markdown
+    markdown,
 }
         

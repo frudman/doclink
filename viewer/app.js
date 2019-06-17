@@ -1,100 +1,177 @@
 "use strict"; // implied with imports below...
 
-import {log, onReady, dontLeavePageIf, onCtrlSave} from './app-utils.js';
-import {copyToClipboard, post} from './app-utils.js';
-import {qs, qsa, on, toggleAttr, attr} from './app-utils.js';
+// todo: build this app into /dist folder as /dist/viewer.js then download statically
 
+// TODO: add build step (& VUE) to simplify adding packages below (and use babel?) AND create admin UI also
 
-// todo: convert to events emitter instead (to save,cancel, changed)
+// once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
+// - also, there are browser-based image editors
 
-const changesPending = (function() {
-    var hasChanges = false
-    return function(flag) {
-        if (arguments.length) // setting current state
-            attr('pending-changes@body', hasChanges = flag);
-        else
-            return hasChanges; // querying current state
-    }
-})();
+import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, qs, on, attr} from '/app-utils.js';
 
-function setLoadedContent(docInfo) {
+import textEditor from './editors/text-editor.js'; // a plain text editor (also used as default for unknown)
+import markdownEditor from './editors/markdown-editor.js'; // [re-]formatting done on server
+// import richEditor from './editors/rich-editor.js'; // uses tinymce
+// import binaryEditor from './editors/binary-editor.js'; // used only to update pure binary files with no view component (drag-drop-select)
+// import imageEditor from './editors/image-editor.js'; // to display (i.e. view) or update (drag-drop-select)
+// import audioEditor from './editors/audio-editor.js'; // to display (i.e. view) or update (drag-drop-select)
+// import videoEditor from './editors/video-editor.js'; // to display (i.e. view) or update (drag-drop-select)
 
-    const {error, html, plain} = docInfo;
+const contentEditors = {
+    default: {
+        text: textEditor, // if all else fails (BUT, default for text-based only)
+        //binary: binaryEditor, // default for NON-text-based files
+    },
+    'markdown-editor' : markdownEditor,
+    // 'rich-editor' : richEditor,
+    // 'image-editor': imageEditor,
+    // 'audio-editor': audioEditor,
+    // 'video-editor': videoEditor,
+}
 
-    if (error) {
-        qs('div[viewer]').innerHTML = html || plain || error; // display it
-        attr('disabled@header', true); // disable editing
-    }
-    else { 
-        // this document becomes the baseline
-        changesPending(false); 
-    
-        qs('div[viewer]').innerHTML = html;
-        qs('textarea').value = plain;
-    
-        for (const el of qsa('code')) {
-            el.setAttribute('title', 'click to copy to clipboard (ctrl-c)');
-            el.addEventListener('click', e => copyToClipboard(e.target.innerText))
+function getEditor(preferedEditor, isText) {
+    var create;
+    if (Array.isArray(preferedEditor))
+        for (const edt of preferedEditor) {
+            if (create = contentEditors[edt]) // assign & test (so single '=' NOT '===') :-)
+                return {create};
         }
-    
-        const toc = qs('h2[toc]');
-        if (toc)
-            toc.addEventListener('click', () => toggleAttr('hide@div.table-of-contents'))
-        else
-            log('not markdown content', content);    
-    }
+    else
+        create = contentEditors[preferedEditor]
+
+    return {create: create || contentEditors.default[isText ? 'text' : 'binary'] };
 }
 
 function showDocument(docInfo) {
 
-    const {doc, error, html, plain} = docInfo;
+    // current premise: after edit, must save to get new view-html (html-gen done on server)
+    // better way: do view-html generation in browser & let user go back and forth (view,edit,view,edit,view...)
+    // - save/cancel buttons appear (then) on view and edit panels
+    // - don't have to save to view changes (so can view changes BEFORE saving)
+    // - ISSUE: are ALL editors workable in browser? e.g. makrdown-it
+    //          - even if not, maybe send to server for re-gen, then display that (without 1st saving on server)
 
-    setLoadedContent(docInfo);
+    // for a binary item (e.g. image), the plain is a url? else, how to send it down as json???
+    // then what? let editor get it separately (e.g. <audio src...> or <img ...> or <video ...> or nothing at all for all others)
+    // also, how to then get it: url should probably reflect '/binary-asset/...'
 
-    attr('href@a[code-editor]', '/edit-document' + doc);
-    attr('href@a[doc-folder]', '/open-folder' + doc.replace(/[/][^/]+$/, '')); // get its folder
+    const {doc, isText, preferedEditor, error} = docInfo;
 
-    on('click@[edit-here]', () => toggleAttr('editing@body'));
-    on('click@[view-formatted]', () => toggleAttr('editing@body'));
+    const viewer = qs('div[viewer]'),
+          editingArea = qs('main div[editor]');
 
-    on('click@button[save]', saveChanges);
+    // error-editor: just displays an error (from server or browser) when nothing else can be done
 
-    onCtrlSave(() => changesPending() && saveChanges());
+    if (error) {
+        log('whoops', docInfo);
+        viewer.innerHTML = `<h2>${error.title || error}</h2><p>${err.message || ''}</p>`;
+        attr('disabled@header', true); // disable editing
+    }
+    else {
+        attr('href@a[code-editor]', '/edit-document' + doc); // with vscode
+        attr('href@a[doc-folder]', '/open-folder' + doc.replace(/[/][^/]+$/, '')); // get its folder
+    
+        const events = new EventEmitter();
+        const editor = getEditor(preferedEditor, isText).create(events, editingArea);
 
-    // reset content
-    on('click@button[cancel]', () => setLoadedContent(docInfo));
+        const refreshViewer = docUpdates => {
+            docUpdates && editor.setDoc(docUpdates);
+            const pretty = editor.getPretty();
+            if (typeof pretty === 'string')
+                viewer.innerHTML = pretty;
+            else {
+                // update but only if different from current
+                // how to know?
+                if (viewer.firstChild === pretty)
+                    log('NO REFRESH NEEDED - handled by custom editor');
+                else if (viewer.firstChild) {
+                    log('CHANGING root child', viewer.firstChild, pretty);
+                    viewer.replaceChild(pretty, viewer.firstChild);
+                }
+                else {
+                    viewer.append(pretty);
+                    log('ADDING FIRST TIME VIEWER', pretty);
+                }
+            }
+        }
 
-    // keeping it simple...
-    on('keydown@textarea', () => changesPending(true)); 
+        var changesPending = false;
+        events.on('changes-pending', () => attr('pending-changes@body', changesPending = true))
+
+        on('click@[edit-here]', () => attr('editing@body', true))  // from viewer
+        on('click@[view-formatted]', async () => { // from editor            
+            refreshViewer();
+            attr('editing@body', false);
+        });
+
+        on('click@button[save]', () => changesPending && saveChanges());
+        onCtrlSave(() => changesPending && saveChanges());
+
+        // reset content
+        on('click@button[cancel]', () => { // back to original
+            if (editor.resetContent) {
+                editor.resetContent();
+                refreshViewer();
+            }
+            else
+                refreshViewer(docInfo); // manually
+
+            attr('pending-changes@body', changesPending = false)
+        });
+
+        // don't let user leave if unsaved changes
+        dontLeavePageIf(() => changesPending);
+
+        // show content to start
+        refreshViewer(docInfo);
+
+        function saveChanges() {
+            const updatedContent = editor.getContent(); // can be a STRING or an OBJECT
+            post(`/save-document${doc}`, updatedContent).then(resp => resp.json())
+                .then(newDoc => {
+
+                    // possible issues: content @ server was modified in between
+                    // could FORCE save (i.e. override what's up there already)
+                    // also, could open new window to see that new content
+
+                    if (newDoc.error) 
+                        log.error('NOT SAVED', newDoc); // do nothing to UI?
+                    else {
+                        attr('pending-changes@body', changesPending = false); // current is new baseline
+                        if (editor.savedContent) {
+                            editor.savedContent();
+                            refreshViewer();
+                        }
+                        else
+                            refreshViewer(docInfo = newDoc); // manually
+                    }
+                })
+                .catch(err => log.error('NOT SAVED', err)); // do nothing to UI?
+        }
+    }
 
     // lastly (nothing displayed until this)...
     attr('nothing-to-show@body', false);
-
-    function saveChanges() {
-        const updatedContent = qs('textarea').value;// plain text? any conversions?
-        post(`/save-document${doc}`, updatedContent).then(resp => resp.json())
-            .then(newDoc => 
-                newDoc.error ? log.error('NOT SAVED', newDoc) : setLoadedContent(docInfo = newDoc))
-            .catch(err => 
-                log.error('NOT SAVED', err));
-    }
 }
 
 // main initialization
 onReady(() => {
 
-    // don't let user leave if unsaved changes
-    dontLeavePageIf(changesPending);
-
     // which document?
     const doc = qs('meta[name=document]').content;
 
     // get it...
-    fetch(`/get-document${doc}`).then(resp => resp.json())
+
+        // ACTUALLY, gets document META; 
+        //  - if a text document, actual content in .raw
+        //  - if not text (i.e. bimary), actual bits kept at .url
+        //      - .url to be used as needed by contentEditor
+
+    fetch(`/get-document${doc}`).then(resp => resp.json()) 
         .then(showDocument)
         .catch(err => showDocument({
             doc,
-            error: err.message || 'unknown error', 
-            html: `<h2>can't get document</h2><p>${err.message || 'unknown error'}</p>`
+            error: { title: `can't get document`, message: err.message || 'unknown error' }, 
+            err
         }));
 });

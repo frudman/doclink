@@ -187,7 +187,7 @@ function startLocalServer() {
     // - stick around (true) because server was launched by us (and must remain live for others)
     // - exit after done (false) because server launched by someone else so we can exit when our task is done
 
-    // is there an instance already started?
+    // must first find out: is there an instance already started?
     return httpGet(SERVER.URL + '/started?')
         .then(() => false) // yes, already running, no need for us to stick around
         .catch(err => { // nope...
@@ -321,15 +321,48 @@ const mainHtmlPage = (function(dev) {
     }
 })(DEV_MODE);
 
-function fmtDocMD(doc, plain) {
+function getContentEditorType(doc) {
+    
+    // TODO: get type/editor from live list (to be added by users)
+    //       - editors would be URLs (from npm?)
+
+    const knownAsText = ``;
+    const knownAsBinary = ``;
+
+    // determine content of file (text or binary)
+    const isText = /[.](te?xt|html?|js|css|php|md|markdown|java|gitignore|settings|conf|xml|yaml|json5?)$/i.test(doc); // if on this list, can ALWAYS be edited at browser
+    //  ? 'text' // todo: use mimetype for this?
+    //     : /[.](bin|jpe?g|png|gif|ico)$/i.test(doc) ? 'binary'
+    //     : 'unknown'; // should be treated as binary
+
+    // determine which editor to use
+    // - todo: use other meta data for file (no just its extension)
+    const preferedEditor = /[.](te?xt)$/i.test(doc) ? 'text-editor'
+        : /[.](md|markkdown)$/i.test(doc) ? 'markdown-editor' 
+        : /[.](html?)$/i.test(doc) ? 'rich-editor' 
+        : /[.](css)$/i.test(doc) ? 'css-editor' // eventually; also, eventually, maybe .stylus, .less, .sass, .scss, ...
+        : /[.](js)$/i.test(doc) ? ['js-code-editor', 'code-editor'] // eventually (later: .cs .python .php .ruby .go .java ...)
+        : /[.](php)$/i.test(doc) ? ['php-code-editor', 'code-editor']
+        : /[.](cs)$/i.test(doc) ? ['csharp-code-editor', 'code-editor']
+        : 'text-editor';
+
+    return {isText,preferedEditor};
+}
+
+function fmtDocMD(doc, raw) {
     // doc used as a self ref
-    return { doc, plain, html:`<h2 toc>table of content</h2>` + markdown.render('[[TOC]]\n\n' + plain), };
+
+
+    //return { doc, ...getTypeAndEditor(doc), plain, html:`<h2 toc>table of content</h2>` + markdown.render('[[TOC]]\n\n' + plain), };
+    return { doc, ...getContentEditorType(doc), raw };//, html: markdown.render(raw), };
+
+    // could leave html blank to let local editor do initial formatting
 }
 
 function fmtDoc(doc) {
     return new Promise(resolve => { // never fails
         fs.readFile(doc, 'utf8', (err, plain) => {
-            resolve(err ? {doc, error: err.message || 'unknown error', html:`<h2>can't read this file</h2><p>${err.message}</p>`}
+            resolve(err ? {doc, error: { message: err.message || 'unknown error', title: `can't read this file` }}
                         : fmtDocMD(doc, plain));
         });    
     })
