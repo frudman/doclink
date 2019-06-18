@@ -221,12 +221,15 @@ function startLocalServer() {
                 res.end('yes, started, all good\n');
             }
             else if (editDocument) {
+                res.end();
                 execFile(VISUAL_CODE_EDITOR, [docNameToEdit]);
-                backToCaller();
+                //backToCaller();
             }
             else if (openFolder) {
-                execFile('open', [folderNameToOpen]); // todo: works on Macs (linux? windows? probably not...)
-                backToCaller();
+                res.end();
+                // todo: 'open' works on Macs (what about linux? windows? probably not...)
+                execFile('open', [folderNameToOpen === '/doclink-folder' ? __dirname : folderNameToOpen]); 
+                //backToCaller();
             }
             else if (gettingDoc) {
                 fmtDoc(docName).then(content => res.json(content));

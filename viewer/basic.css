@@ -2,10 +2,21 @@
 
 @import './utils.css';
 
+:root {
+    --header-height: 25px;
+    --footer-height: 20px;
+}
+
+* {
+    box-sizing: border-box; /* important: full height is as per above; can now "hang" things off of header (e.g. toolbars) */
+}
+
 html, body {
     background: wheat;
     margin: 0;
     height: 100%;
+
+
 }
 
 div[fullpage] {
@@ -32,12 +43,20 @@ body:not([editing]) main [editor] { display: none; }
 xxbody:not([editing])[pending-changes] main [update] { display: block; visibility: visible; }
 body:not([editing]):not([pending-changes]) main [update] { display: none; }
 
+body:not([editing])[pending-changes] header [code-editor] { display: none; }
+
 header {
     background: yellow;
-    padding: 2px 0 1px 5px;
+    height: var(--header-height);
+
+    padding: 0 5px 0 5px;
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
 }
 
-header a { margin-right: 15px; }
+header a { margin-right: 20px; }
 header[disabled] { display: none; }
 
 footer {
@@ -45,9 +64,11 @@ footer {
     color: white;
     font-size: .9em;
     padding: 0 5px 0 5px;
+    height: var(--footer-height);
 
     display: flex;
     flex-direction: row;
+    align-items: center;
 }
 
 footer a { color: white; margin-right: 20px; }

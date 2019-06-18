@@ -7,7 +7,7 @@
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
 
-import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, qs, on, attr} from '/app-utils.js';
+import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, qs, on, attr, scrollBackToTop} from '/app-utils.js';
 
 import textEditor from './editors/text-editor.js'; // a plain text editor (also used as default for unknown)
 import markdownEditor from './editors/markdown-editor.js'; // [re-]formatting done on server
@@ -29,7 +29,7 @@ const contentEditors = {
     // 'video-editor': videoEditor,
 }
 
-function getEditor(preferedEditor, isText) {
+function whichEditor(preferedEditor, isText) {
     var create;
     if (Array.isArray(preferedEditor))
         for (const edt of preferedEditor) {
@@ -62,17 +62,26 @@ function showDocument(docInfo) {
 
     // error-editor: just displays an error (from server or browser) when nothing else can be done
 
+    // href='/open-folder{{DOCLINK_FOLDER}}'
+    // <a open-doclink-folder folder-location
+    on('click@a[open-doclink-folder]', () => fetch(`/open-folder/doclink-folder`));
+
     if (error) {
         log('whoops', docInfo);
-        viewer.innerHTML = `<h2>${error.title || error}</h2><p>${err.message || ''}</p>`;
+        viewer.innerHTML = `<h2>${error.title || error}</h2><p>${error.message || ''}</p>`;
         attr('disabled@header', true); // disable editing
     }
     else {
-        attr('href@a[code-editor]', '/edit-document' + doc); // with vscode
-        attr('href@a[doc-folder]', '/open-folder' + doc.replace(/[/][^/]+$/, '')); // get its folder
+
+        //attr('href@a[code-editor]', '/edit-document' + doc); // with vscode
+        on('click@a[code-editor]', () => fetch('/edit-document' + doc)); // don't care if it succeeds or fails
+
+        // DON'T want to act as if leaving document (not)
+        //attr('href@a[doc-folder]', '/open-folder' + doc.replace(/[/][^/]+$/, '')); // get its folder
+        on('click@a[doc-folder]', () => fetch('/open-folder' + doc.replace(/[/][^/]+$/, ''))); // don't care if it succeeds or fails
     
         const events = new EventEmitter();
-        const editor = getEditor(preferedEditor, isText).create(events, editingArea);
+        const editor = whichEditor(preferedEditor, isText).create(events, editingArea);
 
         const refreshViewer = docUpdates => {
             docUpdates && editor.setDoc(docUpdates);
@@ -174,4 +183,10 @@ onReady(() => {
             error: { title: `can't get document`, message: err.message || 'unknown error' }, 
             err
         }));
+
+    scrollBackToTop({ scrollingEl: qs('[viewer]'), xscrollerText: '' });
+
+    window.addEventListener('scroll', e => {
+        log('sc', e);
+    })
 });

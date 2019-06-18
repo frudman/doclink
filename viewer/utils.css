@@ -60,3 +60,20 @@ div[minimal-toaster] h2 { font-size: 1.1em;  }
 div[minimal-toaster] p { font-size: 1.1em;  }
 
 div[minimal-toaster][visible] { display: block; }
+
+a[back-to-top] { display: none; }
+a[back-to-top]:after {
+    content: ' \25b4';
+}
+body:not([editing])[scrolled] a[back-to-top] {
+    display: block;
+    position: fixed;
+    right: 30px;
+    bottom: calc(5px + var(--footer-height));
+    padding: 10px;
+    background: darkblue;
+    color: white;
+    border-radius: 50%;
+    xopacity: .3;
+}
+

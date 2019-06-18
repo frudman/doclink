@@ -1,4 +1,4 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, onEvt } from '../app-utils.js';
 
 // example of an externally loaded editor
 
@@ -31,7 +31,7 @@ loadSCRIPT.fromUrl('https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js')
 
 const assignRandomId = (prefix = 'rnd-') => prefix + Math.random().toString().substring(2) + Date.now();
 
-function createTOC(htmlEl, min = 2, max = 3) {
+function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
 
     // skip headers not between min & max (e.g. only from h2 to h3)
 
@@ -72,12 +72,12 @@ function createTOC(htmlEl, min = 2, max = 3) {
     });
 
     if (tocHtml) {
-        const tocEl = crEl('div', 'toc');
-        tocEl.innerHTML = `<h2>table of content</h2><div>${tocHtml}</div>`;
+        const tocEl = crEl('div', 'toc', true ? 'is-collapsed' : '');
+        tocEl.innerHTML = `<h2>table of content</h2>${tocHtml}`;
     
         // make hideable
-        qs('div[toc] h2', tocEl).addEventListener('click', () => toggleAttr('hide-table-of-content@body'))
-        log('qxz', qs('div[toc] h2', tocEl), tocEl);
+        qs('div[toc] h2', tocEl).addEventListener('click', () => toggleAttr('is-collapsed', tocEl))//@div[toc]'))
+        //log('qxz', qs('div[toc] h2', tocEl), tocEl);
     
         htmlEl.prepend(tocEl);
     
@@ -90,8 +90,8 @@ function createTOC(htmlEl, min = 2, max = 3) {
 function makeCodeBlocksClipboardCopiable(htmlEl) {
 
     for (const el of byTag('code', htmlEl)) {
-        el.setAttribute('title', 'click to copy to clipboard (ctrl-c)');
-        el.addEventListener('click', e => copyToClipboard(e.target.innerText))
+        attr(el, 'title', 'click to copy to clipboard (ctrl-c)');
+        onEvt('click', el, e => copyToClipboard(e.target.innerText))
     }
 
     return htmlEl;
@@ -104,22 +104,16 @@ export default function createMarkdownEditor(events, editingAreaEl) {
     editingAreaEl.append(ta);
 
     // keeping it simple
-    ta.addEventListener('keydown', () => events.emit('changes-pending')); 
+    onEvt(ta, 'keydown', () => events.emit('changes-pending')); 
 
     // content formatted for display <div md-doc>...</div>
     const asHtml = crEl('div', 'md-doc'); // single/root node returned for display
 
-    //const toc = crEl('div').add(crEl('h2', 'toc').add('table of content')).add(crEl('div', 'toc-entries'));
-
     const getPretty = () => {
         
-        // todo: SHOULD have TOC as a separate field on page (e.g. drop-down in header?)
-        // how to let caller know? pass back { display, header, controls}? how indicate positioning of controls?
-
         const fancyMe = () => {
-            // adds a TOC and makes <code> block clickable-to-copy (ctrl-c)
-            asHtml.innerHTML = toHtml(ta.value);//`<h2 toc>table of content</h2>${toHtml(ta.value)}`;
-            return createTOC(makeCodeBlocksClipboardCopiable(asHtml));
+            asHtml.innerHTML = toHtml(ta.value); // create basic html from markdown
+            return createTOC(makeCodeBlocksClipboardCopiable(asHtml)); // add toc and clickable code blocks
         }
 
         converterReady || onConverterReady.push(fancyMe);
@@ -132,21 +126,19 @@ export default function createMarkdownEditor(events, editingAreaEl) {
 
     var originalContent;
 
-    attr('hide-table-of-content@body', true);
-
     return {
         // REQUIRED: doc is always OBJECT returned from server
         setDoc(doc) { ta.value = originalContent = doc.raw; }, // 
 
-        // REQUIRED: returned content is EITHER a 'string' OR an object (e.g. { tmpSavedUrl: '3245234523452345234' }
+        // REQUIRED: returned content is EITHER a 'string' OR an object (e.g. { tmpSavedUrl: '3245234523452345234', svrToken: '23452345234' }
         // - to be processed accordingly at server (must detect if string or object)
-        getContent() { return ta.value; }, 
+        getContent() { return ta.value; }, // maybe always an object? so can include a server-token (1-to validate + 2-original source to see if changed)
 
         // REQUIRED: can return:
         // - 'string' (updated at caller everytime), or 
-        // - dom node (updated at caller only if root node different from previous)
-        // - allows editor to perform its own updates
-        // - IF RETURN NODE, must be a SINGLE CHILD (i.e. a root kid)
+        // - dom element/node (updated at caller only if root node different from previous)
+        // - allows editor to perform its own updates, async from rest of app
+        // - IF RETURN a NODE/element, must be a SINGLE CHILD (i.e. a root kid)
         getPretty, 
 
         // optional: to know that changes have been canceled
@@ -155,6 +147,7 @@ export default function createMarkdownEditor(events, editingAreaEl) {
 
         // optional: to let us know that current is now new baseline
         // - if missing, ???
+        // must BOTH be present if either is??? to be enforced by app
         savedContent() { originalContent = ta.value; },
     }
 }

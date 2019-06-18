@@ -1,45 +1,72 @@
 // helpers        
 export const log = console.log.bind(console);
-log.error = console.error.bind(console); // NOT WHAT YOU EXPECT!!! console.error uses 1st parm as fmt string...
+log.error = console.error.bind(console); // TODO: NOT WHAT YOU EXPECT!!! console.error uses 1st parm as fmt string...
+    // should accept: ('error', ...parms), (Error, ...parms), (...parms) then act like our log above
+
+const camel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
 
 export const qs = (selector,el) => (el || document).querySelector(selector);
 export const qsa = (selector,el) => (el || document).querySelectorAll(selector); // use as for (const el of qsa('sel-here'))
 export const spl = parts => parts.split('@');
-export const on = (what, listener) => { let [evt,sel] = spl(what); qs(sel).addEventListener(evt, listener); };
-export const toggleAttr = what => { let [attr,sel] = spl(what); qs(sel).toggleAttribute(attr); };
 
-const camel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
+// used when detecting args by type (keep private)
+const DOCUMENT_ELEMENTS = [HTMLElement, HTMLDocument];
+const ANY_EVENT_LISTENER = [...DOCUMENT_ELEMENTS, window];
+
+export const on = (...args) => { // (el, 'evt@selector', listener) or ('evt@selector', listener)
+    const listener = args.pop(); // always last arg
+    if (args.length === 2) {
+        const [el,evt] = reorderArgs([ANY_EVENT_LISTENER, 'string'], ...args);
+        attr(el, evt, listener);
+    }
+    else if (args.length === 1) {
+        attr(args.pop(), listener);
+    }
+    else
+        return log(`ERROR: expecting 2 or 3 parameters for 'on' function`)    
+};
+
+export const onEvt = on; // alias; TODO: fall back to 1 only (on?)
+// function onEvt(...args) {
+
+//     const fcn = args.pop(); // always last arg; args.length now less 1
+
+//     if (args.length === 2) { // el 'evt' action()
+//         // read notes in private_for_documentation_only() above
+//         const [el, evt] = reorderArgs([[...DOCUMENT_ELEMENTS, window], 'string'], ...args); 
+//         el.addEventListener(evt, fcn);
+//     }
+//     else if (args.length === 1) { // 'evt@selector', action
+//         const [evt, sel] = spl(args.pop());
+//         qs(sel).addEventListener(evt, fcn);
+//     }
+//     else
+//         throw new Error(`expecting 2 or 3 arguments for onEvt (got ${args.length})`);
+// }
+
+
 
 export function byTag(tagOrElement, elementOrTag) {
 
     // expects a tag (required) and an element (optional) to search in (uses full doc if not used)
-    
-    var tag, el;
-    const which = x => (typeof x === 'string') ? (tag = x) : (x instanceof HTMLElement) ? (el = x) : '';
+    // order of parms is irrelevent
 
-    which(tagOrElement);
-    which(elementOrTag);
-
+    const [el, tag] = reorderArgs([DOCUMENT_ELEMENTS, 'string'], tagOrElement, elementOrTag);
     return (el || document.documentElement).getElementsByTagName(tag.toUpperCase());
 }
 
 export const crEl = (tag, ...attrs) => {
     const el = document.createElement(tag);
-    log('crel', tag, el.add, el.insert, el.append);
 
-    for (const attr of attrs) {
-        log('add attrs', typeof attr, attr);
-        if (typeof attr === 'string')
-            el.setAttribute(attr, '');
-        else for (const attrName in attr) {
-            log('attrx', attrName, attr[attrName])
-            if (typeof attr[attrName] === 'function')
-                el[attrName] = attr[attrName]
-            else
-                el.setAttribute(attrName, attr[attrName]);
+    for (const attribute of attrs) {
+        if (typeof attribute === 'string')
+            attribute && attr(el, attribute, '');
+        else for (const attrName in attribute || {}) {
+            attr(el, attrName, attribute[attrName]);
         }
     }
 
+    // and for all users of crEl, a bonus...
     el.add = (...args) => {
         for (const arg of args)
             el.append(arg); // AS TEXT or as HTML???
@@ -49,34 +76,162 @@ export const crEl = (tag, ...attrs) => {
     return el;
 }
 
-export function attr(what, value) {
-    if (arguments.length === 3) {
-        var bt = arguments[0];
-        var attr = arguments[1];
-        value = arguments[2];
-        log('set-attr', bt, attr, value);
-        if (bt.nodeType !== Node.ELEMENT_NODE) {
-            log('cannot set a non-element node attribute', bt, attr);
-            return;
-        }
+export function toggleAttr(...args) {
+    if (arguments.length === 1) {
+        var [attr,sel] = spl(what); 
+        var el = qs(sel);//.toggleAttribute(attr);     
     }
     else {
-        var [attr,sel] = spl(what);
-        var bt = qs(sel);
+        var el = typeof arguments[0] === 'string' ? arguments[1] : arguments[0];
+        var attr = typeof arguments[0] === 'string' ? arguments[0] : arguments[1];
+    }
+    el && attr && el.toggleAttribute(attr);     
+};
+
+// ALSO do for byTag (parm order)
+
+
+// warning: solution below can also fail at times
+// not a trivial issue: https://stackoverflow.com/questions/332422/get-the-name-of-an-objects-type
+// - e.g. is this not same as obj.constructor.name?: many times yes, but not always!
+// - in general: [object HTMLElement] -> HTMLElement
+export const actualTypeOf = obj => Object.prototype.toString.call(obj).slice(8, -1); 
+
+export function isInstanceOf(baseType, objectToCheck, maxChainDepth = 10) {
+
+    // warning: since based on 'actualTypeOf', and .constructor.name strategy,
+    //          solution below can also fail at times (read above notes)
+
+    // EDGE CASES (for convenience): should really pass Window & Document (the types), 
+    // but folks likely to use window & document (the objects) instead, so we compensate for that
+    if (baseType === window || baseType === document)
+        return baseType === objectToCheck;
+
+    let objTypeName = actualTypeOf(objectToCheck); // first time around
+    while (objTypeName && objTypeName !== baseType.name && maxChainDepth-- > 0) {
+        objectToCheck = Object.getPrototypeOf(objectToCheck.constructor); // go up the chain
+        objTypeName = objectToCheck.name; // since must now be a function (i.e. a constructor), just get its name
+    }
+
+    if (maxChainDepth === 0)
+        log('LIKELY ERROR', baseType, objectToCheck, objTypeName);
+
+    return baseType.name === objTypeName;
+}
+
+export function reorderArgs(order, ...args) {
+    
+    // reorders args into required order: possible ONLY IF all parms have a different type
+    // order is sequence of: 'type1, type2, ...', typeX, typeY, 'moreTypes...'
+
+    const parmtypes = order.reduce((sofar,now) => {
+        (typeof now === 'string') ? sofar.push(...now.split(/[^\w]+/g)) : sofar.push(now);
+        return sofar;
+    }, []);
+
+    return parmtypes.map(type => args.find(a => typesMatch(type, a)));
+
+    function typesMatch(type, item, caseInsensitive = true) {
+
+        // todo: allow for multiple types in strings (e.g. 'string|number, function, object')
+        //       as we do for actual types; for now, no need in our code base (so not 'over-engineered!)
+        //       (though perhaps over-commented) :-)
+
+        if (typeof type === 'string') {
+            caseInsensitive && (type = type.toLowerCase());
+            if (typeof item === type) return true; // trivial case (e.g. function string ???)
+            let realType = actualTypeOf(item);
+            caseInsensitive && (realType = realType.toLowerCase());
+            return realType === type;    
+        }
+        else if (Array.isArray(type)) {
+            for (const t of type) {
+                if (t === item || isInstanceOf(t, item))
+                    return true;
+            }
+            return false;
+        }
+        else
+            return isInstanceOf(type, item); // that's different than matching...
+    }
+}
+
+function private_for_documentation_only() {
+
+    // element & document both inherit from Node
+    // addEventListener is on EventTarget but that does NOT seem to work below (not instanceof???)
+    // https://developer.mozilla.org/en-US/docs/Web/API/Element
+    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
+    // https://developer.mozilla.org/en-US/docs/Web/API/Document
+    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLDocument
+
+
+    const ta = document.createElement('textarea');
+    log('TA TEST 1', 
+        isInstanceOf(EventTarget, ta), // false: why???
+        isInstanceOf(Node, ta), // false: why???
+        isInstanceOf(Element, ta), // false: why???
+        isInstanceOf(HTMLElement, ta), // true
+    );
+
+    const da2 = document;
+    log('DA TEST 2', 
+        isInstanceOf(EventTarget, da2), // false: why???
+        isInstanceOf(Node, da2), // false: why???
+        isInstanceOf(Document, da2), // true
+        isInstanceOf(HTMLDocument, da2), // true
+    );    
+}
+
+export function attr(...args) {
+
+    // SHOULD we allow for setting attributes on MULTIPLE elements? e.g. 'attrx@div[custom-divs]
+    // - then would need some sort of loop
+    
+    const value = args.pop(); // always last arg; args.length now less 1
+
+    if (args.length === 2) { 
+        var [el, attr] = reorderArgs([HTMLElement, 'string'], ...args)
+        if (el.nodeType !== Node.ELEMENT_NODE) {
+            return log('WARNING: cannot set a non-element node attribute', el, attr, value);
+        }
+    }
+    else if (args.length === 1) {
+        var [attr,sel] = spl(args.pop());
+        var el = qs(sel);
+    }
+    else {
+        return log('ERROR: unexpected attribute value', el, attr, value);
+        //throw new Error(`expecting 2 or 3 arguments for attr`); // a
     }
 
     if (value === true)
-        bt.setAttribute(attr, '');
-    else if (value === false)// || value === undefined || value === null)
-        bt.removeAttribute(attr);
+        el.setAttribute(attr, '');
+    else if (value === false)
+        el.removeAttribute(attr);
     else if (typeof value === 'string')
-        bt.setAttribute(attr, value);
+        el.setAttribute(attr, value);
+    else if (typeof value === 'function') {
+
+        // COULD STILL HAVE evt@selector WITHIN el: if so need to use qs or qsa(selector).addEventSelector
+        a b 
+
+
+        // setting an event listener
+        el.addEventListener(attr.replace(/^on/i, '').toLowerCase(), value);
+    }
     else 
-        log.error('unexpected attribute value', value);
+        log('ERROR: unexpected attribute value', el, attr, value);
 }
 
-// do after doc is fully loaded
-export const onReady = action => window.addEventListener('load', action);
+// do after doc is fully loaded (i.e. window.onload) BUT...
+// - window load event is called only once, so only on already-registered listeners
+// - Trying to listen for the window loaded event AFTER it's done, will NOT be work
+// - onReady (below) will ALWAYS call actions, even if requested after original load
+//   event is done
+var winLoaded = false;
+window.addEventListener('load', () => winLoaded = true);
+export const onReady = action => winLoaded ? action() : window.addEventListener('load', action);
 
 // warn of unsaved changes
 export function dontLeavePageIf(dontLeave) {
@@ -90,28 +245,64 @@ export function dontLeavePageIf(dontLeave) {
 }
 
 export const toaster = (function(TOASTER_FADE_IN_MS) {
+
+    // todo: allow placement of toast next to caller (e.g. copied! on black rectangle)
+    
     // really minimal toast
     // MUCH NICER ONE (and simple also, mostly css): https://codepen.io/kipp0/pen/pPNrrj
-    const el = crEl('div');
-    onReady(() => {
-        document.body.appendChild(el);
-        el.setAttribute('minimal-toaster', ''); // attr(el, 'minimal-toaster', true);
-    })
+    
+    const el = crEl('div', 'minimal-toaster');
+    onReady(() => document.body.append(el))
 
-    return (...args) => {
+    return (...args) => { // text or title,text
         const text = args.pop(), title = args.pop();
         el.innerHTML = title ? `<h1>${title}</h1><p>${text}</p>` : `<h2>${text}</h2>`;
-        el.setAttribute('visible', '');
-        setTimeout(() => el.removeAttribute('visible'), TOASTER_FADE_IN_MS)
+        attr(el, 'visible', true);
+        setTimeout(() => attr(el, 'visible', false), TOASTER_FADE_IN_MS)
     };
 })(1500);
 
+export function scrollBackToTop({
+    scrollingEl,// = '[viewer]', 
+    triggerScrollAmt = 10, 
+    scrollAttr = 'scrolled@body', 
+    scroller = 'back-to-top@a',
+    scrollerText = 'top'
+}) {
+
+    if (!scrollingEl)
+        throw new Error(`need a scrolling element to track for scrollBackToTop feature`);
+
+    const [scrollerAttr, scrollerTag] = spl(scroller);
+    const el = crEl(scrollerTag, scrollerAttr).add(scrollerText);
+    el.addEventListener('click', () => scrollingEl.scrollTop = 0);
+
+    onReady(() => {
+        log('ready yet?');
+        document.body.append(el); // wait until actual doc set to append at very end
+        scrollingEl.addEventListener('scroll', e => attr(scrollAttr, (e.target.scrollTop > triggerScrollAmt)))
+    })
+}
+
+// (function(SCROLL_AMOUNT_BEFORE_TOP) {
+//     const el = crEl('a', 'back-to-top').add('top');
+//     el.addEventListener('click', () => qs('[viewer]').scrollTop = 0);
+
+//     onReady(() => {
+//         document.body.append(el); // wait until actual doc set to append at very end
+//         qs('[viewer]').addEventListener('scroll', e => {
+//             log('scorlla', e.target.scrollTop);;
+//             attr('scrolled@body', (e.target.scrollTop > SCROLL_AMOUNT_BEFORE_TOP));
+//         })
+//     })
+// })(10);
+
 
 export const copyToClipboard = (function() {
-    const cta = crEl('textarea');
+    const cta = crEl('textarea', 'clipboard-utility');
     onReady(() => {
         document.body.appendChild(cta);
-        cta.setAttribute('clipboard-utility', ''); // MUST have def in css (mostly position: absolute; left: -9999999px;)
+        //cta.setAttribute('clipboard-utility', ''); // MUST have def in css (mostly position: absolute; left: -9999999px;)
     })
     return str => {
         cta.value = str;
