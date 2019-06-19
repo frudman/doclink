@@ -1,102 +1,159 @@
 // helpers        
 export const log = console.log.bind(console);
 log.error = console.error.bind(console); // TODO: NOT WHAT YOU EXPECT!!! console.error uses 1st parm as fmt string...
-    // should accept: ('error', ...parms), (Error, ...parms), (...parms) then act like our log above
+    // TODO: should accept: ('error', ...parms), (Error, ...parms), (...parms) then act like our log above
 
 const camel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
 
-export const qs = (selector,el) => (el || document).querySelector(selector);
-export const qsa = (selector,el) => (el || document).querySelectorAll(selector); // use as for (const el of qsa('sel-here'))
-export const spl = parts => parts.split('@');
+// document: https://developer.mozilla.org/en-US/docs/Web/API/Window/document
+// - Document (the type): https://developer.mozilla.org/en-US/docs/Web/API/Document
+// document.documentElement: root of document (so the 'html' tag)
 
 // used when detecting args by type (keep private)
 const DOCUMENT_ELEMENTS = [HTMLElement, HTMLDocument];
 const ANY_EVENT_LISTENER = [...DOCUMENT_ELEMENTS, window];
 
-export const on = (...args) => { // (el, 'evt@selector', listener) or ('evt@selector', listener)
-    const listener = args.pop(); // always last arg
-    if (args.length === 2) {
-        const [el,evt] = reorderArgs([ANY_EVENT_LISTENER, 'string'], ...args);
-        attr(el, evt, listener);
+export const qs = (selector,el) => (el || document).querySelector(selector);
+// todo: create a qsx: same as qs but extends result like crEl does;
+// todo: qsax also?
+export const qsa = (selector,el) => (el || document).querySelectorAll(selector); // use as for (const el of qsa('sel-here'))
+export const spl = parts => parts.split('@'); // used for 'event-name@dom-selector' -> ['event-name', 'dom-selector']
+
+// keeping it simple & consistent:
+// - value (string or function) is always LAST element
+// - if there is a selector string, it is always FIRST element
+// - if [also] passing dom element, it is always AFTER selector (if any), and always BEFORE value
+
+/* Philosophy: use attribute names instead of class names makes for cleaner looking
+               and more semantically-readable documents
+   BUT... must be careful of using:
+   - reserved attributes: e.g. 'hidden' (future replacement for display: none; )
+   - common attributes likely to be used by others and create confusion
+*/
+
+//export 
+function gattr(attrAndSelector, domEl) { // get attribute value
+    // not implemented: implement when needed (so can also test it)
+}
+
+// used ONLY to SET a value: NOT to read it (use gattr for that)
+export function attr(...args) { // ('attr-name[@selector]'[, domEl], value)
+
+    // 1- ('attr-name', domEl, value): domEl.attr-name = value;
+    // 2- ('attr-name', value): INVALID
+    // 3- ('attr-name@selector', value): [all elements with selector].attr-name = value
+    // 4- ('attr-name@selector', domEl, value): [all elements with selector WITHIN domEl].attr-name = value
+
+    const value = args.pop(), // always last arg
+          isListener = typeof value === 'function',
+          [attrName, selector] = spl(args.shift()),
+          domEl = args.shift(); // should be only arg left (if any)
+
+    if (selector) { // cases 3 & 4
+        const els = qsa(selector, domEl);
+        for (const el of els)
+            setAttr(attrName, el, value);
     }
-    else if (args.length === 1) {
-        attr(args.pop(), listener);
+    else if (domEl) { // case 1
+        setAttr(attrName, domEl, value);
     }
-    else
-        return log(`ERROR: expecting 2 or 3 parameters for 'on' function`)    
+    else { // case 2
+        throw new Error(`set attribute (attr) requires either '...@selector' or a dom element (or both) - got neither`)
+    }
+
+    function setAttr(attr, el, value) {
+
+        // strategy: we check to make sure we can (add|remove) attr (or listener)
+        // because not all elements can do this (must have .nodeType === Node.ELEMENT_NODE)
+        // (see https://www.w3schools.com/jsref/prop_node_nodetype.asp)
+
+        // this will SILENTLY IGNORE those cases where the call would fail
+        // (e.g. setAttribute on a #text node)
+
+        // BUT, we permit this so that loop constructs that walk through children (for example)
+        // can have cleaner code by just calling attr() wihtout having to first check for each
+        // node's type (e.g. createTOC function in markdown-editor.js)
+
+        if (isListener) // setting an event listener
+            el.addEventListener && el.addEventListener(attr.replace(/^on[-_]*/i, '').toLowerCase(), value);
+        else if (value === true)
+            el.setAttribute && el.setAttribute(attr, '');
+        else if (value === false)
+            el.removeAttribute && el.removeAttribute(attr);
+        else
+        el.setAttribute && el.setAttribute(attr, (value || '').toString()); 
+    }
+}
+
+export const on = (...args) => { // ('evt[@selector]'[, domEl], listener)
+    const listener = args.pop(), // always last arg
+          evtAndSelector = args.shift(), // always first
+          domEl = args.shift(); // should be only arg left (if any)
+
+    attr(evtAndSelector, domEl, listener);
 };
 
-export const onEvt = on; // alias; TODO: fall back to 1 only (on?)
-// function onEvt(...args) {
-
-//     const fcn = args.pop(); // always last arg; args.length now less 1
-
-//     if (args.length === 2) { // el 'evt' action()
-//         // read notes in private_for_documentation_only() above
-//         const [el, evt] = reorderArgs([[...DOCUMENT_ELEMENTS, window], 'string'], ...args); 
-//         el.addEventListener(evt, fcn);
-//     }
-//     else if (args.length === 1) { // 'evt@selector', action
-//         const [evt, sel] = spl(args.pop());
-//         qs(sel).addEventListener(evt, fcn);
-//     }
-//     else
-//         throw new Error(`expecting 2 or 3 arguments for onEvt (got ${args.length})`);
-// }
-
-
-
-export function byTag(tagOrElement, elementOrTag) {
+export function byTag(tag, domEl = document.documentElement) {
 
     // expects a tag (required) and an element (optional) to search in (uses full doc if not used)
-    // order of parms is irrelevent
 
-    const [el, tag] = reorderArgs([DOCUMENT_ELEMENTS, 'string'], tagOrElement, elementOrTag);
-    return (el || document.documentElement).getElementsByTagName(tag.toUpperCase());
+    return domEl.getElementsByTagName(tag.toUpperCase());
 }
 
 export const crEl = (tag, ...attrs) => {
-    const el = document.createElement(tag);
+    const el = document.createElement(tag.toLowerCase());
 
     for (const attribute of attrs) {
         if (typeof attribute === 'string')
-            attribute && attr(el, attribute, '');
+            attribute && attr(attribute, el, true);
+        else if (typeof attribute === 'function')
+            attribute.name && attr(attribute.name, el, attribute);
         else for (const attrName in attribute || {}) {
-            attr(el, attrName, attribute[attrName]);
+            attr(attrName, el, attribute[attrName] || true);
         }
-    }
+    }    
 
-    // and for all users of crEl, a bonus...
+    // BONUS for users of crEl...
     el.add = (...args) => {
         for (const arg of args)
-            el.append(arg); // AS TEXT or as HTML???
-        return el;
+            el.append(arg); // AS TEXT or as HTML??? innerText or innerHTML?
+        return el; // can chain
+    }
+
+    // BONUS for users of crEl...
+    el.on = (evt, action) => {
+        on(evt, el, action);
+        return el; // can chain
     }
 
     return el;
 }
 
-export function toggleAttr(...args) {
-    if (arguments.length === 1) {
-        var [attr,sel] = spl(what); 
-        var el = qs(sel);//.toggleAttribute(attr);     
+export function toggleAttr(...args) { // ('attr[@selector]'[, domEl])
+    const [attr,selector] = spl(args.shift()),
+          el = args.pop();
+
+    if (selector) {
+        const els = qsa(selector);
+        for (const el of els)
+            el.toggleAttribute(attr);    
+    }
+    else if (el) {
+        el.toggleAttribute(attr);
     }
     else {
-        var el = typeof arguments[0] === 'string' ? arguments[1] : arguments[0];
-        var attr = typeof arguments[0] === 'string' ? arguments[0] : arguments[1];
+        throw new Error(`toggleAttr expects either a '...@selector' or a domElement (or both) - got neither`)
     }
-    el && attr && el.toggleAttribute(attr);     
 };
-
-// ALSO do for byTag (parm order)
-
 
 // warning: solution below can also fail at times
 // not a trivial issue: https://stackoverflow.com/questions/332422/get-the-name-of-an-objects-type
 // - e.g. is this not same as obj.constructor.name?: many times yes, but not always!
 // - in general: [object HTMLElement] -> HTMLElement
+// NOT FULLY TESTED
 export const actualTypeOf = obj => Object.prototype.toString.call(obj).slice(8, -1); 
 
+// NOT FULLY TESTED
 export function isInstanceOf(baseType, objectToCheck, maxChainDepth = 10) {
 
     // warning: since based on 'actualTypeOf', and .constructor.name strategy,
@@ -119,7 +176,8 @@ export function isInstanceOf(baseType, objectToCheck, maxChainDepth = 10) {
     return baseType.name === objTypeName;
 }
 
-export function reorderArgs(order, ...args) {
+//export UNTESTED
+function reorderArgs(order, ...args) {
     
     // reorders args into required order: possible ONLY IF all parms have a different type
     // order is sequence of: 'type1, type2, ...', typeX, typeY, 'moreTypes...'
@@ -183,59 +241,18 @@ function private_for_documentation_only() {
     );    
 }
 
-export function attr(...args) {
-
-    // SHOULD we allow for setting attributes on MULTIPLE elements? e.g. 'attrx@div[custom-divs]
-    // - then would need some sort of loop
-    
-    const value = args.pop(); // always last arg; args.length now less 1
-
-    if (args.length === 2) { 
-        var [el, attr] = reorderArgs([HTMLElement, 'string'], ...args)
-        if (el.nodeType !== Node.ELEMENT_NODE) {
-            return log('WARNING: cannot set a non-element node attribute', el, attr, value);
-        }
-    }
-    else if (args.length === 1) {
-        var [attr,sel] = spl(args.pop());
-        var el = qs(sel);
-    }
-    else {
-        return log('ERROR: unexpected attribute value', el, attr, value);
-        //throw new Error(`expecting 2 or 3 arguments for attr`); // a
-    }
-
-    if (value === true)
-        el.setAttribute(attr, '');
-    else if (value === false)
-        el.removeAttribute(attr);
-    else if (typeof value === 'string')
-        el.setAttribute(attr, value);
-    else if (typeof value === 'function') {
-
-        // COULD STILL HAVE evt@selector WITHIN el: if so need to use qs or qsa(selector).addEventSelector
-        a b 
-
-
-        // setting an event listener
-        el.addEventListener(attr.replace(/^on/i, '').toLowerCase(), value);
-    }
-    else 
-        log('ERROR: unexpected attribute value', el, attr, value);
-}
-
 // do after doc is fully loaded (i.e. window.onload) BUT...
 // - window load event is called only once, so only on already-registered listeners
 // - Trying to listen for the window loaded event AFTER it's done, will NOT be work
 // - onReady (below) will ALWAYS call actions, even if requested after original load
 //   event is done
 var winLoaded = false;
-window.addEventListener('load', () => winLoaded = true);
-export const onReady = action => winLoaded ? action() : window.addEventListener('load', action);
+on('load', window, () => winLoaded = true);
+export const onReady = action => winLoaded ? action() : on('load', window, action);
 
 // warn of unsaved changes
 export function dontLeavePageIf(dontLeave) {
-    window.addEventListener('beforeunload', e => {
+    on('beforeunload', window, e => {
         // https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload        
         if (dontLeave()) {
             e.preventDefault(); // Cancel the event
@@ -244,23 +261,78 @@ export function dontLeavePageIf(dontLeave) {
     });
 }
 
-export const toaster = (function(TOASTER_FADE_IN_MS) {
+export const toaster = (function() {
 
-    // todo: allow placement of toast next to caller (e.g. copied! on black rectangle)
-    
     // really minimal toast
     // MUCH NICER ONE (and simple also, mostly css): https://codepen.io/kipp0/pen/pPNrrj
     
-    const el = crEl('div', 'minimal-toaster');
-    onReady(() => document.body.append(el))
+    const toasterEl = crEl('div', 'toaster'); // matches css attribute
+    onReady(() => document.body.append(toasterEl))
 
-    return (...args) => { // text or title,text
-        const text = args.pop(), title = args.pop();
-        el.innerHTML = title ? `<h1>${title}</h1><p>${text}</p>` : `<h2>${text}</h2>`;
-        attr(el, 'visible', true);
-        setTimeout(() => attr(el, 'visible', false), TOASTER_FADE_IN_MS)
+    const px = obj => {
+        Object.entries(obj).forEach(([k,v]) => typeof v === 'number' && (obj[k] = `${v}px`));
+        return obj;
+    }
+
+    return ({text, html, el, place, sep = 5, width = 150, height = 30, attribute = 'plain', howLong = 1.5}) => {
+
+        toasterEl.innerHTML = html || `<span>${text}</span>`;
+
+        positionToaster();
+        attr('showing', toasterEl, attribute);
+        setTimeout(() => attr('showing', toasterEl, false), howLong < 500 ? howLong * 1000 : howLong);
+
+        function positionToaster() { 
+
+            // below: do NOT use boundingRect .x/.y: fails on ie & edge
+            let plx = { width, height }, 
+                pageBased = false,
+                rel = el && el.getBoundingClientRect(), // boundingrect based on current viewport (scrolled and all)
+                is = x => el && x.test(place || '');
+
+
+            if (el && !place) { // figure it out based on screen position
+                const windowWidth = (window.innerWidth || document.documentElement.clientWidth),
+                      windowHeight = (window.innerHeight || document.documentElement.clientHeight);
+
+                const okright = (rel.left + rel.width + sep + width) < windowWidth,
+                      okleft = (rel.left - sep - width) >= 0,
+                      okabove = (rel.top - sep - height) >= 0,
+                      okbelow = (rel.top + rel.height + sep + height) < windowHeight;
+
+                place = okright && okabove && okbelow ? 'rightof' 
+                      : okleft && okabove && okbelow ? 'leftof' 
+                      : okabove && okright && okleft ? 'above' 
+                      : 'below';
+            }
+
+            if (is(/right(of)?/)) {
+                plx.left = rel.left + rel.width + sep;
+                plx.top = rel.top + (rel.height / 2) - (height / 2);
+            }
+            else if (is(/left(of)?/i)) {
+                plx.left = rel.left - width - sep;
+                plx.top = rel.top + (rel.height / 2) - (height / 2);
+            }
+            else if (is(/above/i)) {
+                plx.left = rel.left + (rel.width / 2) - (width / 2);
+                plx.top = rel.top - (height + sep);
+            }
+            else if (is(/below/i)) {
+                plx.left = rel.left + (rel.width / 2) - (width / 2);
+                plx.top = rel.top + (height + sep);
+            }
+            else { // use default screen placement on whole page (so 'fixed')
+                const lr = /left/i.test(place) ? 'left' : 'right';
+                const tb = /bottom/i.test(place) ? 'bottom' : 'top';
+                pageBased = `${tb}-${lr}`;
+            }
+
+            attr('page', toasterEl, pageBased);
+            Object.assign(toasterEl.style, px(plx));
+        }
     };
-})(1500);
+})();
 
 export function scrollBackToTop({
     scrollingEl,// = '[viewer]', 
@@ -274,47 +346,33 @@ export function scrollBackToTop({
         throw new Error(`need a scrolling element to track for scrollBackToTop feature`);
 
     const [scrollerAttr, scrollerTag] = spl(scroller);
-    const el = crEl(scrollerTag, scrollerAttr).add(scrollerText);
-    el.addEventListener('click', () => scrollingEl.scrollTop = 0);
+    const el = crEl(scrollerTag, scrollerAttr)
+        .add(scrollerText)
+        .on('click', () => scrollingEl.scrollTop = 0);
 
     onReady(() => {
-        log('ready yet?');
         document.body.append(el); // wait until actual doc set to append at very end
-        scrollingEl.addEventListener('scroll', e => attr(scrollAttr, (e.target.scrollTop > triggerScrollAmt)))
+        on('scroll', scrollingEl, e => attr(scrollAttr, (e.target.scrollTop > triggerScrollAmt)))
     })
 }
 
-// (function(SCROLL_AMOUNT_BEFORE_TOP) {
-//     const el = crEl('a', 'back-to-top').add('top');
-//     el.addEventListener('click', () => qs('[viewer]').scrollTop = 0);
-
-//     onReady(() => {
-//         document.body.append(el); // wait until actual doc set to append at very end
-//         qs('[viewer]').addEventListener('scroll', e => {
-//             log('scorlla', e.target.scrollTop);;
-//             attr('scrolled@body', (e.target.scrollTop > SCROLL_AMOUNT_BEFORE_TOP));
-//         })
-//     })
-// })(10);
-
-
 export const copyToClipboard = (function() {
+
+    // MUST have def in css (mostly position: absolute; left: -9999999px;)
     const cta = crEl('textarea', 'clipboard-utility');
-    onReady(() => {
-        document.body.appendChild(cta);
-        //cta.setAttribute('clipboard-utility', ''); // MUST have def in css (mostly position: absolute; left: -9999999px;)
-    })
-    return str => {
+
+    onReady(() => document.body.appendChild(cta)); 
+    return (str,el) => {
         cta.value = str;
         cta.select();
         document.execCommand('copy');
-        toaster('copied to clipboard');
+        toaster({text: 'copied to clipboard', el, width: 150 });
     }    
 })();
 
 const isMac = /mac/i.test(window.navigator.platform);
 export function onCtrlSave(action) {
-    document.addEventListener('keydown', e => {
+    on('keydown', document, e => {
         if (e.key === 's' && (isMac ? e.metaKey : e.ctrlKey)) {
             e.preventDefault(); // important (else browser wants to save the page)
             action();
@@ -322,14 +380,16 @@ export function onCtrlSave(action) {
     });
 }
 
-export const post = (url, body) => {
+export const post = (...args) => { // url[,headers],body
 
-    // todo: add 3rd parm (object) as headers (always middle element, always an object)
+    const url = args.shift(), // always first
+          body = args.pop(), // always last
+          headers = args.shift() || {}; // always after url
 
     if (typeof body === 'string')
-        fetch(url, { method: 'post', body}); // no headers?
+        fetch(url, { method: 'post', body, headers });
     else
-        fetch(url, { method: 'post', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data), });
+        fetch(url, { method: 'post', headers: {'Content-Type': 'application/json', ...headers}, body: JSON.stringify(data), });
 
     // maybe also: postForm(...) then use 'Content-Type': 'application/x-www-form-urlencoded'
 }
@@ -398,15 +458,16 @@ export class EventEmitter {
         // note: using setTimeout to allow for next-tick processing
 
         const self = this,
-                {events,peekAll} = self; // shorthand
+              {events,peekAll} = self, // shorthand
+              exec = listener => setTimeout(listener, 0); // always do on next go round (don't lock the loop)
 
-        peekAll.forEach(listener => setTimeout(() => listener.call(self, eventName, ...args), 0)); // note: eventName is 1st parm
+        peekAll.forEach(listener => exec(() => listener.call(self, eventName, ...args))); // note: eventName is 1st parm
 
         const evts = events[eventName];
         if (evts && evts.length > 0)
-            evts.forEach(listener => setTimeout(() => listener.apply(self, args), 0)); // note: eventName is NOT PASSED
+            evts.forEach(listener => exec(() => listener.apply(self, args))); // note: eventName is NOT PASSED
         else 
-            (events['*'] || []).forEach(listener => setTimeout(() => listener.call(self, eventName, ...args), 0)); // note: eventName is 1st parm
+            (events['*'] || []).forEach(listener => exec(() => listener.call(self, eventName, ...args))); // note: eventName is 1st parm
     }
 
     removeAll(safety = false) {
@@ -540,6 +601,7 @@ const cssProp = (function() {
 
 export function secureProp(obj, ...props) {
     // props is sequence of: 'propname', prop-value AND { propname:prop-value, ...}
+    // using Object.defineProperty (below) because defaults to configurable=editable=writable=FALSE (hence secured)
     while (props.length) {
         const prop = props.shift(); // get next in line
         if (typeof prop === 'string') {

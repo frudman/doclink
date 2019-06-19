@@ -30,7 +30,7 @@ div[md-doc] div[toc] {
 
     position: fixed;
     right: 25px;
-    top: var(--header-height);
+    top: 0; /*var(--header-height); */
     background: beige;
     padding: 8px; /*0 10px 15px 10px;*/
 

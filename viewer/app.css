@@ -2,3 +2,147 @@
 
 @import './basic.css';
 
+/* TODO: SPLIT VIEW of edited content and preview; for wide monitors 
+         - maybe also up/down for easier edits on not-wide screens? */
+
+:root {
+    --header-height: 25px;
+    --footer-height: 20px;
+
+    --page-spacing-left-right: 65px;
+}
+
+div[fullpage] {
+    display: flex;
+    flex-direction: column;
+    height: 100%; 
+}
+
+/* until ready, show nothing (else flashing) */
+body[loading] { display: none; }
+
+body[viewing] header { display: none; }
+body[viewing] footer { display: none; }
+body[viewing] main [editor] { display: none; }
+body[editing] main [viewer] { display: none; }
+
+/* SAVE/CANCEL buttons */
+body[viewing]:not([pending-changes]) main [savecancel] { display: none; }
+body[editing]:not([pending-changes]) main [savecancel] { visibility: hidden; }
+body[editing][pending-changes] main [savecancel] { visibility: visible; }
+
+/* toolbox buttons */
+nav[toolbox] button[viewing], 
+nav[toolbox] button[editing] { display: none; }
+body[editing] nav[toolbox] button[editing] { display: block; }
+body[viewing] nav[toolbox] button[viewing] { display: block; }
+
+header {
+
+    /* should only be used while editing? */
+
+    background: yellow;
+    height: var(--header-height);
+
+    padding: 0 5px 0 5px;
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+header a { margin-right: 20px; }
+header[disabled] { display: none; }
+
+footer {
+    background: darkgreen;
+    color: white;
+    font-size: .9em;
+    padding: 0 5px 0 5px;
+    height: var(--footer-height);
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+footer a { color: white; margin-right: 20px; }
+footer span { flex: 1; text-align: right; }
+
+main {
+    flex: 1; /* myself: take up everything after header/footer */
+    overflow: auto; /* constrains display to viewport, with a scrollbar if needed; else long page - overflow displayed */
+    margin: 0;
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
+
+main [viewer] {
+    padding: 0 var(--page-spacing-left-right);
+
+    flex: 1;
+    overflow: auto;
+}
+
+main [editor] {
+    flex: 1; /* myself */
+    padding: 15px calc(var(--page-spacing-left-right) / 2) 10px var(--page-spacing-left-right);
+
+    /* for my kids */
+    display: flex;
+    flex-direction: column;
+}
+
+main [savecancel] { /* save/cancel buttons area */
+    display: flex;
+    flex-direction: row;
+    padding: 5px var(--page-spacing-left-right);
+}
+
+body[viewing] main [savecancel] {
+    border-top: solid 1px red;
+    background: darkorange;
+}
+
+main [savecancel] button {
+    font-size: 1.2em;
+    margin-right: 20px; 
+}
+
+button[save] { background: green; }
+button[save]:after { content: "✓save" }
+button[cancel] { background: red; }
+button[cancel]:after { content: "✗cancel" }
+
+
+/* nav would be better than div for the toolbox but the html5 hidden attribute 
+   does not seem to work on the nav tag */
+
+nav[toolbox] {
+    position: fixed;
+    top: 50px;
+    display: flex;
+    flex-direction: column;
+    width: calc(var(--page-spacing-left-right) - 9px);
+    background: cadetblue;
+    overflow: hidden;
+    opacity: .2;
+}
+
+nav[toolbox][hidden] { 
+    /* override most browsers' builtin implementation of: [hidden] { display: none; }
+    from: https://allyjs.io/tutorials/hiding-elements.html#the-html5-hidden-attribute */
+    display: none; 
+}
+
+nav[toolbox]:hover { opacity: 1; }
+
+nav[toolbox] button {
+    margin-bottom: 3px;
+    background: blue;
+    font-size: .8em;
+}
+
+nav[toolbox] button:last-child { margin-bottom: 0; }

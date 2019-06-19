@@ -1,4 +1,4 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, onEvt } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on } from '../app-utils.js';
 
 // example of an externally loaded editor
 
@@ -6,6 +6,10 @@ import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag
 // - how to collapse! all elements until next header of that or higher
 
 // search: based on headers, lines
+
+// todo: open TOC on hover
+// todo: faster tooltips
+// todo: locally positioned toasts
 
 
 // todo: add back-to-top href=# (maybe also #top) [or just document.body.scrollTop = document.documentElement.scrollTop = 0;]
@@ -20,14 +24,12 @@ const toHtml = txt => converterReady ? converterReady.makeHtml(txt) : `<div tmp>
 
 // https://github.com/showdownjs/showdown [markdown-to-html converter]
 loadSCRIPT.fromUrl('https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js') 
-    .then(x => {
-        log('got x', x, x.target, x.path, x.target.innerText);
-        sleep(1500).then(() => { // fake a delay in loading
-            converterReady = new showdown.Converter(); // from now on
-            while (onConverterReady.length) 
-                onConverterReady.pop()(); // update early birds
-        });
-    }); 
+    .then(x => sleep(1500).then(() => { // fake a delay in loading
+        converterReady = new showdown.Converter(); // from now on
+        while (onConverterReady.length) 
+            onConverterReady.pop()(); // update early birds
+    }))
+    .catch(err => log('whoops getting showdown', err)); 
 
 const assignRandomId = (prefix = 'rnd-') => prefix + Math.random().toString().substring(2) + Date.now();
 
@@ -48,25 +50,25 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
         }
 
         var isCollapsed = false;
-        const isHigherHeader = el => /h\d/i.test(el.tagName) && parseInt(el.tagName.substring(1)) <= num;
+        const isHigherHeader = el => /h\d/i.test(el.tagName) && (parseInt(el.tagName.substring(1)) <= num);
 
-        attr(el, 'title', 'click to collapse');
+        attr('title', el, 'click to collapse this section');
         el.addEventListener('click', () => {
-            log('i b clicked', el);
             isCollapsed = !isCollapsed;
 
-            // NOT .nextSibling; want to SKIP #text/#comment nodes; 
-            // - read: https://www.w3schools.com/jsref/prop_node_nextsibling.asp
+            // note using . nextElementSibling NOT .nextSibling because we want to SKIP #text/#comment nodes; 
+            // - as per: https://www.w3schools.com/jsref/prop_node_nextsibling.asp
             // - also: https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+            // also: https://developer.mozilla.org/en-US/docs/Web/API/Node/nextSibling
+            // also: https://developer.mozilla.org/en-US/docs/Web/API/NonDocumentTypeChildNode/nextElementSibling
+            // - BUT doesn't seem to work! we [seem to] get #text nodes anyway!!!
+            // - it's ok because attr() will account for this (and ignore those calls)
+
             var sib = el.nextElementSibling; 
-            while (sib) {
-                if (isHigherHeader(sib)) {
-                    break; // we're done
-                }
-                else {
-                    attr(sib, 'collapsed', isCollapsed);
-                    sib = sib.nextSibling;
-                }
+            while (sib && !isHigherHeader(sib)) {
+                attr('collapsed', sib, isCollapsed);
+                attr('title', el, isCollapsed ? 'click to expand this section' : 'click to collapse this section');
+                sib = sib.nextSibling;
             }
         })
     });
@@ -90,8 +92,8 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
 function makeCodeBlocksClipboardCopiable(htmlEl) {
 
     for (const el of byTag('code', htmlEl)) {
-        attr(el, 'title', 'click to copy to clipboard (ctrl-c)');
-        onEvt('click', el, e => copyToClipboard(e.target.innerText))
+        attr('title', el, 'click to copy to clipboard (ctrl-c)');
+        on('click', el, e => copyToClipboard(e.target.innerText))//, e.target))
     }
 
     return htmlEl;
@@ -104,7 +106,7 @@ export default function createMarkdownEditor(events, editingAreaEl) {
     editingAreaEl.append(ta);
 
     // keeping it simple
-    onEvt(ta, 'keydown', () => events.emit('changes-pending')); 
+    on('keydown', ta, () => events.emit('changes-pending')); 
 
     // content formatted for display <div md-doc>...</div>
     const asHtml = crEl('div', 'md-doc'); // single/root node returned for display

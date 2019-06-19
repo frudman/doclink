@@ -20,20 +20,16 @@
 
         <!--- favicon.png created from src-appicon with https://www.favikon.com -->
     </head>
-    <body nothing-to-show>
+    <body loading>
         <div fullpage>
-            <header>
-                <a viewing edit-here>[edit this document]</a>
-                <a viewing code-editor>[edit with vscode]</a>
-                <a viewing doc-folder>[open containing folder]</a>
-                <a editing view-formatted>[view formatted]</a>
-            </header>
+            <nav toolbox></nav>
+            <header page></header>
             <main>
                 <div viewer></div>
                 <div editor></div>
-                <div update><button save>✓save</button><button cancel>✗cancel</button></div>
+                <div savecancel><button save></button><button cancel></button></div>
             </main>
-            <footer>
+            <footer page>
                 <a open-doclink-folder title='click to open that folder'>using: {{DOCLINK}} v.{{DOCLINK_VERSION}}</a>
                 <a href='{{GITHUB_PROJECT}}' target=_blank>[see it on github]</a>
                 <span>copyright © {{YEAR}} freddy rudman</span>
