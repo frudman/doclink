@@ -16,11 +16,18 @@ Object.defineProperty(require('http').ServerResponse.prototype, 'json', {
     }
 });
 
+// this is a PEEK last/first; should we rename it?
 Object.defineProperty(Array.prototype, 'last', {
     value() {
         return this.length > 0 ? this[this.length - 1] : undefined;
     }
 });
+Object.defineProperty(Array.prototype, 'first', {
+    value() {
+        return this.length > 0 ? this[0] : undefined;
+    }
+});
+
 
 // enables non-js requires: e.g. require('./text-based-file.css')
 `txt html css x.js` // .x.js for template-based .js code (so won't interfere with require processing for normal modules)

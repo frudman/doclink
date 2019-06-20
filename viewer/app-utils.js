@@ -3,6 +3,19 @@ export const log = console.log.bind(console);
 log.error = console.error.bind(console); // TODO: NOT WHAT YOU EXPECT!!! console.error uses 1st parm as fmt string...
     // TODO: should accept: ('error', ...parms), (Error, ...parms), (...parms) then act like our log above
 
+// this is a PEEK last/first; should we rename it?
+Object.defineProperty(Array.prototype, 'last', {
+    value() {
+        return this.length > 0 ? this[this.length - 1] : undefined;
+    }
+});
+Object.defineProperty(Array.prototype, 'first', {
+    value() {
+        return this.length > 0 ? this[0] : undefined;
+    }
+});
+
+
 const camel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
 
 // document: https://developer.mozilla.org/en-US/docs/Web/API/Window/document
@@ -113,18 +126,28 @@ export const crEl = (tag, ...attrs) => {
         }
     }    
 
-    // BONUS for users of crEl...
-    el.add = (...args) => {
-        for (const arg of args)
-            el.append(arg); // AS TEXT or as HTML??? innerText or innerHTML?
-        return el; // can chain
-    }
+    // BONUS helpers for users of crEl...
+    // todo: warn if some helpers are not initially undefined (e.g. 'text' on <script> tags)
+    const helper = (helper, fcn) => el[helper] === undefined && (el[helper] = fcn);
 
-    // BONUS for users of crEl...
-    el.on = (evt, action) => {
+    helper('add', (...args) => {
+        for (const arg of args)
+            el.append(arg);
+        return el; // can chain
+    })
+
+    // next 2 are PROBLEMATIC: SHOULD be empty (undefined) BUT...
+    // ...BUT...
+    // typeof el.text is STRING when tagname === 'script'
+    // ...not sure why; TBI
+    // ...so, at least for SCRIPT tags, CANNOT DEPEND ON/USE .text feature (hmmm...)
+    helper('html', (...args) => { el.innerHTML = args.join(' '); return el; });
+    helper('text', (...args) => { el.innerText = args.join(' '); return el; });
+
+    helper('on', (evt, action) => {
         on(evt, el, action);
         return el; // can chain
-    }
+    })
 
     return el;
 }
@@ -241,11 +264,27 @@ function private_for_documentation_only() {
     );    
 }
 
+// function to allow early calls BEFORE a library (script) is actually loaded & ready
+// - will keep track of early birds until lib is set; set the actual lib with lib.ready(...)
+export function asyncFeature() {
+    var ready;
+    const earlyBirds = [];
+    const x = (...args) => ready ? ready(...args) : earlyBirds.push(args); // how to know WHAT to return???
+    x.ready = fcn => {
+        ready = fcn;
+        while(earlyBirds.length)
+            ready(...earlyBirds.shift());
+    }
+    return x;
+};
+
+
 // do after doc is fully loaded (i.e. window.onload) BUT...
 // - window load event is called only once, so only on already-registered listeners
 // - Trying to listen for the window loaded event AFTER it's done, will NOT be work
 // - onReady (below) will ALWAYS call actions, even if requested after original load
 //   event is done
+// TBI: ??? is this SAME AS document.addEventListener('DOMContentLoaded',function(){}) ???
 var winLoaded = false;
 on('load', window, () => winLoaded = true);
 export const onReady = action => winLoaded ? action() : on('load', window, action);
@@ -260,79 +299,6 @@ export function dontLeavePageIf(dontLeave) {
         }
     });
 }
-
-export const toaster = (function() {
-
-    // really minimal toast
-    // MUCH NICER ONE (and simple also, mostly css): https://codepen.io/kipp0/pen/pPNrrj
-    
-    const toasterEl = crEl('div', 'toaster'); // matches css attribute
-    onReady(() => document.body.append(toasterEl))
-
-    const px = obj => {
-        Object.entries(obj).forEach(([k,v]) => typeof v === 'number' && (obj[k] = `${v}px`));
-        return obj;
-    }
-
-    return ({text, html, el, place, sep = 5, width = 150, height = 30, attribute = 'plain', howLong = 1.5}) => {
-
-        toasterEl.innerHTML = html || `<span>${text}</span>`;
-
-        positionToaster();
-        attr('showing', toasterEl, attribute);
-        setTimeout(() => attr('showing', toasterEl, false), howLong < 500 ? howLong * 1000 : howLong);
-
-        function positionToaster() { 
-
-            // below: do NOT use boundingRect .x/.y: fails on ie & edge
-            let plx = { width, height }, 
-                pageBased = false,
-                rel = el && el.getBoundingClientRect(), // boundingrect based on current viewport (scrolled and all)
-                is = x => el && x.test(place || '');
-
-
-            if (el && !place) { // figure it out based on screen position
-                const windowWidth = (window.innerWidth || document.documentElement.clientWidth),
-                      windowHeight = (window.innerHeight || document.documentElement.clientHeight);
-
-                const okright = (rel.left + rel.width + sep + width) < windowWidth,
-                      okleft = (rel.left - sep - width) >= 0,
-                      okabove = (rel.top - sep - height) >= 0,
-                      okbelow = (rel.top + rel.height + sep + height) < windowHeight;
-
-                place = okright && okabove && okbelow ? 'rightof' 
-                      : okleft && okabove && okbelow ? 'leftof' 
-                      : okabove && okright && okleft ? 'above' 
-                      : 'below';
-            }
-
-            if (is(/right(of)?/)) {
-                plx.left = rel.left + rel.width + sep;
-                plx.top = rel.top + (rel.height / 2) - (height / 2);
-            }
-            else if (is(/left(of)?/i)) {
-                plx.left = rel.left - width - sep;
-                plx.top = rel.top + (rel.height / 2) - (height / 2);
-            }
-            else if (is(/above/i)) {
-                plx.left = rel.left + (rel.width / 2) - (width / 2);
-                plx.top = rel.top - (height + sep);
-            }
-            else if (is(/below/i)) {
-                plx.left = rel.left + (rel.width / 2) - (width / 2);
-                plx.top = rel.top + (height + sep);
-            }
-            else { // use default screen placement on whole page (so 'fixed')
-                const lr = /left/i.test(place) ? 'left' : 'right';
-                const tb = /bottom/i.test(place) ? 'bottom' : 'top';
-                pageBased = `${tb}-${lr}`;
-            }
-
-            attr('page', toasterEl, pageBased);
-            Object.assign(toasterEl.style, px(plx));
-        }
-    };
-})();
 
 export function scrollBackToTop({
     scrollingEl,// = '[viewer]', 
@@ -617,9 +583,129 @@ export function secureProp(obj, ...props) {
 export const loadCSS = (...css) => document.head.appendChild(crEl('style').add(asCssString(...css)));
 secureProp(loadCSS, 'fromUrl', href => new Promise(onload => document.head.appendChild(crEl('link', {href, rel: 'stylesheet', onload}))));
 
+// fyi: alt to Promise.all(...)
+// https://github.com/tc39/proposal-promise-allSettled
+
+// simple polyfill (not checked against tc39 api)
+// - returns an array of object: { status: 'resolved/rejected', resolved: true/missing, rejected: true/missing, value: 'from promise'}
+const settled = p => p.then(value => ({status: 'resolved', resolved: true, value}))
+                      .catch(error => ({status: 'rejected', rejected: true, error}));
+Promise.allSettled || (Promise.allSettled = promises => Promise.all(promises.map(settled)));
+
 export const loadSCRIPT = (...code) => document.head.append(crEl('script').add(...code));
-secureProp(loadSCRIPT, { fromUrl(src) { return new Promise(onload => document.head.append(crEl('script', {src, onload}))); } });
+secureProp(loadSCRIPT, { 
+    fromUrl(...args) {
+
+        // if first parm is boolean, first parm === IN_SEQUENCE
+        // - IN_SEQUENCE=true means that later scripts are only loaded if prior scripts all loaded correctly
+        //      - IN_SEQUENCE=true is default if not specified (i.e. 1st param is not boolean)
+        // - IN_SEQUENCE=false used ONLY if loading multiple scripts AND NONE is dependent on the others
+        //      - load order likely to be random
+        //      - this means an explicit 'false' as first param
+
+        // Background: (not sure that reason is correct; more research required;)
+        // scripts loaded with javascript tags SHOULD load as 'defer' but when redirects are involved, 
+        // later loaded scripts MAY end up executing ahead of prior loaded ones
+        // so the only way to force it to is NOT load next script until first one is actually finished loading
+
+        const IN_SEQUENCE = typeof args[0] === 'boolean' ? args.shift() : true;
+
+        return IN_SEQUENCE ? loadInOrder() : loadInAnyOrder();
+
+        function loadInOrder() {
+            return new Promise(async (resolve, reject) => {                
+                while (args.length) {
+                    try {
+                        await loadScript(args.shift());
+                    }
+                    catch(err) {
+                        return reject(err + (args.length ? ` [skipping: ${args.join('; ')}]` : ``));
+                    }
+                }
+                resolve();
+            })
+        }
+
+        function loadInAnyOrder() {
+            const scripts = args.map(s => loadScript(s));
+            return Promise.allSettled(scripts).then(results => {
+                const errors = [...results.filter(r => r.rejected)];
+                if (errors.length)
+                    throw errors;
+            })
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve,reject) => {
+                document.head.append(crEl('script', { src,
+                    onload() { resolve(); }, 
+                    onerror() { reject('failed loading ' + src); }
+                }));
+            }); 
+        }
+    } 
+});
 
 export const mustache = (str,vars) => Object.entries(vars).reduce((sofar,[k,v]) => sofar.replace(`{{${k}}}`,v), str);
 export const sleep = delayInMS => new Promise(resolve => setTimeout(resolve, delayInMS));
+
+/* tooltip notes:
+    We use a popper.js-based library, tippy.js
+    - popper.js seems extremely complete but ridiculously complex to use (rctu)
+    - popper.js has horrendously difficult documentation to understand (hddu)...
+        - ...for what it does (tooltips for fuck sake!!! how hard should this be!!!)
+    - popper cannot be used by itself, it requires a framework above it
+        - MUST ALWAYS load popper.js first...
+        - best to use it (+ framework) as npm + build but used below as straight <scripts>
+    - i explored 2 such frameworks: tooltip.js & tippy.js
+    - tooltip.js was rctu AND HDDU: i chose to abandon it!!!
+    - tippy.js just worked!
+        - special considerations for IE11:
+            - read: https://atomiks.github.io/tippyjs/creating-tooltips/#svg-in-i-e-11
+            - NOT IMPLEMENTED below; but easy enough to add an extra loadSCRIPT statement
+        - all css works, no need for customization on our part (even with our 'display: flex' framework: yay!)
+
+    - fyi: https://popper.js.org/ [home or popper.js & tooltip.js]
+    - fyi: https://popper.js.org/tooltip-examples.html
+    - fyi: https://github.com/FezVrasta/popper.js
+    - fyi: https://popper.js.org/tooltip-documentation.html
+    - THIS ONE: https://atomiks.github.io/tippyjs/all-options/
+        - for example usage, see app.js
+*/
+const tooltips = asyncFeature(); // i.e. will be ready eventually
+loadSCRIPT.fromUrl('https://unpkg.com/popper.js', 'https://unpkg.com/tippy.js')
+    .then(() => {
+        tooltips.ready((el, {html, label, text, arrow = true, placement = 'top'} = {}) => {
+            tippy(el, { arrow, placement, 
+                content: html || label || text || 'no tooltip specified!',
+                allowHTML: !!html,
+            });
+        });
+        log('TOOLTIP feature loaded & ready');
+    })
+    .catch(err => {
+        log('error loading tooltip lib: ', err);
+        tooltips.ready((el,options) => log('tooltip feature failed to load - tooltip settings ignored', el, options));
+    });
+
+export function tooltip(...args) { 
+    
+    // (el, options) or ('sel', options) or ('sel', el, options)
+    // options is {obj} or 'tooltip string'
+
+    // for all possible tooltip options, see: https://atomiks.github.io/tippyjs/all-options/
+    // BUT, must then ALSO implement these here...
+
+    // TODO: add option to show a tooltip ONCE, then delayed (or not) 2nd time around (less annoying)
+    //       - one way: change display delay after shown once
+
+    const options = typeof args.last() === 'string' ? { html: args.pop().replace(/\n+/g, '<br>') } : args.pop();
+    const selector = (typeof args.first() === 'string') ? args.shift() : false; // using selector 
+    const el = args.shift();
+
+    const elx = (selector && el) ? qs(selector, el) : (selector || el)
+
+    tooltips(elx, options); 
+    return elx; // chaining
+}
 

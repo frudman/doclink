@@ -17,7 +17,7 @@
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
 
-import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, on, attr, scrollBackToTop} from '/app-utils.js';
+import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, on, attr, scrollBackToTop, tooltip} from '/app-utils.js';
 
 import textEditor from './editors/text-editor.js'; // a plain text editor (also used as default for unknown)
 import markdownEditor from './editors/markdown-editor.js'; // [re-]formatting done on server
@@ -87,20 +87,24 @@ function showDocument(docInfo) {
         const toolbox = qs('nav[toolbox]');
         
         const tools = [
-            { attr: 'viewing edit-here', label: 'edit', icon: '', click() { displayMode('editing'); } },
+            { attr: 'viewing edit-here', label: 'edit', tt: 'edit in place', icon: '', click() { displayMode('editing'); } },
             { attr: 'editing view-formatted', label: 'view', icon: '', click() {  // from editor            
                 refreshViewer();
                 displayMode('viewing');
             }},
-            { attr: 'viewing editing doc-folder', label: 'open containing folder', icon: '', click() { fetch('/open-folder' + doc.replace(/[/][^/]+$/, '')); } },
-            { attr: 'viewing code-editor', label: 'edit with vscode', icon: '', click() { fetch('/edit-document' + doc); } },
+            { attr: 'viewing editing doc-folder', tt: `open this document's<br>containing folder`, label: 'open', icon: '', click() { fetch('/open-folder' + doc.replace(/[/][^/]+$/, '')); } },
+            { attr: 'viewing code-editor', tt: 'edit with<br>visual studio code', label: 'vscode', icon: '', click() { fetch('/edit-document' + doc); } },
         ];
 
         addTools(toolbox, tools);
 
         function addTools(tb, tools) {
-            for (const tool of tools)
-                tb.append(crEl('button', ...tool.attr.split(' '), tool.click).add(tool.label));
+            for (const tool of tools) {
+                tb.append(tooltip(crEl('button', ...tool.attr.split(' '), tool.click).add(tool.label), {
+                    html: 'click to ' + (tool.tt || tool.label),
+                    placement: 'right', // default is 'top'
+                }));
+            }
         }
 
         const events = new EventEmitter();

@@ -20,6 +20,7 @@ div[tmp] pre {
 
 div[md-doc] h1, div[md-doc] h2, div[md-doc] h3, div[md-doc] h4, div[md-doc] h5, div[md-doc] h6 {
     cursor: pointer;
+    outline: none;
 }
  
 div[md-doc] div[toc] {
@@ -53,14 +54,14 @@ div[md-doc] div[toc] h2 {
     cursor: pointer; 
     margin: 0 0 6px 0; 
     color: green;
-    xxborder: none;
+    outline: none;
 
 }
 /*div[md-doc] div[toc] h2:hover:after {*/
 div[md-doc] div[toc] h2:after {
     font-size: .7em;
-    xcontent: ' \25B0 \25B1 \25B2 \25B3 \25B4 \25B5 \25B6 \25B7 \25B8 \25B9 \25BA \25Bb \25Bc \25Bd \25Be \25Bf'; /* \25B5 up arrow; also B4 for black: https://www.unicode.org/charts/PDF/U25A0.pdf */
-    xcontent: ' \25aa'; /* \25B5 up arrow; also B4 for black: https://www.unicode.org/charts/PDF/U25A0.pdf */
+    /* \25B5 up arrow; also B4 for black: https://www.unicode.org/charts/PDF/U25A0.pdf */
+    /*' \25aa'; /* \25B5 up arrow; also B4 for black: https://www.unicode.org/charts/PDF/U25A0.pdf */
 }
 
 div[md-doc] div[toc] h2:hover:after {

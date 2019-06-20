@@ -1,4 +1,4 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip } from '../app-utils.js';
 
 // example of an externally loaded editor
 
@@ -16,6 +16,15 @@ import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag
 // - https://www.w3schools.com/howto/howto_js_scroll_to_top.asp
 // - https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#Attributes (under href: see note)
 
+// on('mouseenter', document, e => {
+//     if (e.target.title && !e.target.tooltipped) {
+//         attr('tooltipped', e.target, e.target.title);
+//         log('tooltipped', e.target.tooltipped);
+//         //toaster({text: e.target.title, el: e.target});
+//     }
+//     else log('nada', e.target);
+// });
+
 loadCSS.fromUrl('/editors/markdown-editor.css');
 
 var converterReady = false;
@@ -24,7 +33,7 @@ const toHtml = txt => converterReady ? converterReady.makeHtml(txt) : `<div tmp>
 
 // https://github.com/showdownjs/showdown [markdown-to-html converter]
 loadSCRIPT.fromUrl('https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js') 
-    .then(x => sleep(1500).then(() => { // fake a delay in loading
+    .then(x => sleep(0).then(() => { // fake a delay in loading
         converterReady = new showdown.Converter(); // from now on
         while (onConverterReady.length) 
             onConverterReady.pop()(); // update early birds
@@ -52,7 +61,7 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
         var isCollapsed = false;
         const isHigherHeader = el => /h\d/i.test(el.tagName) && (parseInt(el.tagName.substring(1)) <= num);
 
-        attr('title', el, 'click to collapse this section');
+        tooltip(el, {text:'click to collapse or expand this section', placement: 'top'})
         el.addEventListener('click', () => {
             isCollapsed = !isCollapsed;
 
@@ -67,23 +76,23 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
             var sib = el.nextElementSibling; 
             while (sib && !isHigherHeader(sib)) {
                 attr('collapsed', sib, isCollapsed);
-                attr('title', el, isCollapsed ? 'click to expand this section' : 'click to collapse this section');
                 sib = sib.nextSibling;
             }
         })
     });
 
     if (tocHtml) {
-        const tocEl = crEl('div', 'toc', true ? 'is-collapsed' : '');
-        tocEl.innerHTML = `<h2>table of content</h2>${tocHtml}`;
+        // create it
+        const tocEl = crEl('div', 'toc', true ? 'is-collapsed' : '').html(`<h2>table of content</h2>${tocHtml}`);
+
+        // give it help tip
+        tooltip('h2', tocEl, {html: 'click to show/hide<br>table of content', placement: 'left'});
     
-        // make hideable
-        qs('div[toc] h2', tocEl).addEventListener('click', () => toggleAttr('is-collapsed', tocEl))//@div[toc]'))
-        //log('qxz', qs('div[toc] h2', tocEl), tocEl);
+        // make collapsable
+        on('click@h2', tocEl, () => toggleAttr('is-collapsed', tocEl));
     
+        // add it
         htmlEl.prepend(tocEl);
-    
-        log('created TOC', tocEl);    
     }
 
     return htmlEl;
@@ -92,8 +101,8 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
 function makeCodeBlocksClipboardCopiable(htmlEl) {
 
     for (const el of byTag('code', htmlEl)) {
-        attr('title', el, 'click to copy to clipboard (ctrl-c)');
-        on('click', el, e => copyToClipboard(e.target.innerText))//, e.target))
+        tooltip(el, 'click to copy to clipboard (ctrl-c)');
+        on('click', el, e => copyToClipboard(e.target.innerText, e.target))
     }
 
     return htmlEl;

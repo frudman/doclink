@@ -146,3 +146,10 @@ nav[toolbox] button {
 }
 
 nav[toolbox] button:last-child { margin-bottom: 0; }
+
+xxxdiv.tooltip {
+    background: black;
+    color: white;
+    padding: 8px;
+    border-radius: 7px;
+}
