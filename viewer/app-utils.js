@@ -317,14 +317,24 @@ function private_for_documentation_only() {
 
 // function to allow early calls BEFORE a library (script) is actually loaded & ready
 // - will keep track of early birds until lib is set; set the actual lib with lib.ready(...)
-export function asyncFeature() {
+// - return results on first call only (refresh after placeholder) has nowhere to return results to
+// SO...
+// - this means that the functions (tmp and ready) must be self-contained; if results are returned,
+//   they must be self-updatable after the facts
+export function asyncFeature(placeholderFcn) {
     var ready;
     const earlyBirds = [];
-    const x = (...args) => ready ? ready(...args) : earlyBirds.push(args); // how to know WHAT to return???
+    function x(...args) {
+        if (ready) 
+            return ready(...args);
+        earlyBirds.push(args);
+        if (placeholderFcn) 
+            return placeholderFcn(...args);
+    }
     x.ready = fcn => {
         ready = fcn;
         while(earlyBirds.length)
-            ready(...earlyBirds.shift());
+            ready(...earlyBirds.shift()); // nothing to return to
     }
     return x;
 };
@@ -358,6 +368,8 @@ export function scrollBackToTop({
     scroller = 'back-to-top@a', // control itself
     scrollerText = 'top' // text displayed on control
 }) {
+    // - https://www.w3schools.com/howto/howto_js_scroll_to_top.asp
+    // - https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#Attributes (under href: see note)
 
     if (!scrollingEl)
         throw new Error(`need a scrolling element to track for scrollBackToTop feature`);

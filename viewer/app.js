@@ -11,15 +11,6 @@
 
 // TODO: add build step (& VUE) to simplify adding packages below (and use babel?) AND create admin UI also
 
-// TODO: look at https://stackoverflow.com/questions/30651251/window-vs-document-documentelement-best-practices
-//       look at Your Answer at bottom of page
-//       for simple edit bar at top of page when editing rich
-//       - leftmost: [preview] [toolbar goes here] [simple/more/help]
-
-// BONUS: stackoverflow MARKDOWN editor: https://github.com/openlibrary/wmd
-// - AND, uses SHOWDOWN also!!!
-// also read: https://stackoverflow.com/questions/2874646/which-stack-overflow-style-markdown-wmd-javascript-editor-should-i-use
-// COULD: edit markdown as raw text or easy-editor
 
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
@@ -101,7 +92,28 @@ function showDocument(docInfo) {
             }},
             { attr: 'viewing editing doc-folder', tt: `open this document's<br>containing folder`, label: 'open', icon: '', click() { fetch('/open-folder' + doc.replace(/[/][^/]+$/, '')); } },
             { attr: 'viewing code-editor', tt: 'edit with<br>visual studio code', label: 'vscode', icon: '', click() { fetch('/edit-document' + doc); } },
+            { attr: 'viewing ', tt: 'preview', label: 'preview', icon: '', click() { 
+                const features = 'location=no,height=570,width=520,scrollbars=no,status=no'
+                const replaceIfExisting = true;
+                if (typ) {
+                    typ.postMessage({dft: new Date()}, '*');
+                }
+                else {
+                    on('message', window, e => {
+                        log('received something', e, e.data);
+                    })
+                    typ = window.open('/app.html', 'boobaleh', features, replaceIfExisting)
+                    typ.onload = () => {
+                        log('winx loaded?');
+                        //typ.postMessage({fuckMe:'77777- asdfasdfasdfasdfasdf'}, '*')
+                    }
+
+                    log('opened or got window', typ);
+                }
+            } },
         ];
+
+        var typ;
 
         addTools(toolbox, tools);
 
@@ -138,7 +150,14 @@ function showDocument(docInfo) {
         }
 
         var changesPending = false;
-        events.on('changes-pending', () => attr('pending-changes@body', changesPending = true))
+        events.on('changes-pending', () => {
+            attr('pending-changes@body', changesPending = true);
+
+
+            if (typ) {
+                typ.postMessage({html: editor.getPrettyHtml()}, '*');
+            }
+        })
 
         on('click@button[save]', () => changesPending && saveChanges());
         onCtrlSave(() => changesPending && saveChanges());
@@ -196,6 +215,12 @@ function showDocument(docInfo) {
 // main initialization
 onReady(() => {
 
+    if (window.opener) {
+        return appFor2ndWindow();
+    }
+
+    log('in main window')
+
     // which document?
     const doc = qs('meta[name=document]').content;
 
@@ -224,3 +249,25 @@ onReady(() => {
         lastScrolled = e.target.scrollTop;
     });
 });
+
+function appFor2ndWindow() {
+    log('in 2nd window');
+    log('helloe', window.opener);
+
+    window.opener.postMessage({kql:123}, '*');
+    
+    window.addEventListener('message', onMsg);
+    
+    var ctn = 10;
+    
+    function onMsg(e) {
+        console.log('got e', e.origin, e.data, ';', qs('div[viewer]'));
+        
+        if (e.data.html)
+            qs('div[viewer]').innerHTML = e.data.html;
+    
+        setTimeout(() => {
+            window.opener.postMessage({kql:123 + ctn++}, '*')
+        }, 3000);
+    }    
+}

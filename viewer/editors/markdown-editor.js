@@ -1,44 +1,87 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip, asyncFeature } from '../app-utils.js';
 
 // example of an externally loaded editor
 
-// headers: collapse & stuff; collapse all; expand all
-// - how to collapse! all elements until next header of that or higher
-
-// search: based on headers, lines
-
+// todo: search: based on headers, lines
 // todo: open TOC on hover
-// todo: faster tooltips
-// todo: locally positioned toasts
 
+// TODO: look at https://stackoverflow.com/questions/30651251/window-vs-document-documentelement-best-practices
+//       look at Your Answer at bottom of page
+//       for simple edit bar at top of page when editing rich
+//       - leftmost: [preview] [toolbar goes here] [simple/more/help]
 
-// todo: add back-to-top href=# (maybe also #top) [or just document.body.scrollTop = document.documentElement.scrollTop = 0;]
-// - https://www.w3schools.com/howto/howto_js_scroll_to_top.asp
-// - https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#Attributes (under href: see note)
+// BONUS: stackoverflow MARKDOWN editor: https://github.com/openlibrary/wmd
+// - AND, uses SHOWDOWN also!!!
+// also read: https://stackoverflow.com/questions/2874646/which-stack-overflow-style-markdown-wmd-javascript-editor-should-i-use
+// COULD: edit markdown as raw text or easy-editor
 
-// on('mouseenter', document, e => {
-//     if (e.target.title && !e.target.tooltipped) {
-//         attr('tooltipped', e.target, e.target.title);
-//         log('tooltipped', e.target.tooltipped);
-//         //toaster({text: e.target.title, el: e.target});
-//     }
-//     else log('nada', e.target);
-// });
 
 loadCSS.fromUrl('/editors/markdown-editor.css');
 
-var converterReady = false;
-const onConverterReady = [];
-const toHtml = txt => converterReady ? converterReady.makeHtml(txt) : `<div tmp><pre>${txt}</pre></div>`; 
+const toHtml = asyncFeature((asHtml, mdText) => {
+    asHtml.innerHTML = `<div tmp><pre>${mdText}</pre></div>`;
+    return asHtml;
+})
 
 // https://github.com/showdownjs/showdown [markdown-to-html converter]
 loadSCRIPT.fromUrl('https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js') 
-    .then(x => sleep(0).then(() => { // fake a delay in loading
-        converterReady = new showdown.Converter(); // from now on
-        while (onConverterReady.length) 
-            onConverterReady.pop()(); // update early birds
+    .then(x => sleep(1500).then(() => { // fake a delay in loading
+        const conv = new showdown.Converter(); // from now on
+        toHtml.ready((asHtml, mdText) => {
+            asHtml.innerHTML = conv.makeHtml(mdText); // create basic html from markdown
+            return createTOC(makeCodeBlocksClipboardCopiable(asHtml)); // add toc and clickable code blocks        
+        })
     }))
     .catch(err => log('whoops getting showdown', err)); 
+
+// based on: https://benweet.github.io/stackedit.js/    
+// <script src="https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js"></script>    
+const stackEditor = new Promise((resolve,reject) => {
+    loadSCRIPT.fromUrl(`/editors/stackeditor.js`)//https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js`)
+        .then(x => {
+            resolve();
+        })
+        .catch(err => log('WYSIWYG loading error', err)); 
+});
+
+// https://cdn.jsdelivr.net/gh/benweet/stackedit.js/
+// https://cdn.jsdelivr.net/gh/benweet/stackedit.js@1.0.7/docs/lib/stackedit.min.js
+
+// https://github.com/openlibrary/wmd
+
+
+if (false) {
+// https://github.com/StackExchange/pagedown
+// https://www.jsdelivr.com/package/npm/pagedown
+// https://cdn.jsdelivr.net/npm/pagedown/
+// read: https://gomakethings.com/how-to-turn-any-github-repo-into-a-cdn/
+// based on: https://cdn.jsdelivr.net/gh/{username}/{repo}/ to turn github projects into CDNs
+// - https://cdn.jsdelivr.net/gh/StackExchange/pagedown/ (note trailing slash)
+// NOTE: may also want to get wmd-buttons.png
+// HOW TO USE: https://code.google.com/archive/p/pagedown/wikis/PageDown.wiki (old but only instructions I found)
+
+// https://github.com/StackExchange/pagedown/blob/master/demo/browser/demo.html
+const pagedownCDN = `https://cdn.jsdelivr.net/gh/StackExchange/pagedown`;
+var editor;
+var ready = false;
+loadCSS.fromUrl('/editors/pagedown-styles.css');
+loadSCRIPT.fromUrl(`${pagedownCDN}/Markdown.Converter.js`, // based on showdown apparently
+                    `${pagedownCDN}/Markdown.Sanitizer.js`,
+                    `${pagedownCDN}/Markdown.Editor.js`) // NOT available at unpkg.com or regular jsdelivr.com/npm/...
+    .then(x => {
+        log('WYSIWYG loaded', Markdown.Converter);
+        var converter = Markdown.getSanitizingConverter();
+        log('conv', converter);
+
+        editor = new Markdown.Editor(converter)
+        log('editor', editor);
+        ready && editor.run();
+
+        // #wmd-button-bar, #wmd-input, and #wmd-preview
+    })
+    .catch(err => log('WYSIWYG loading error', err)); 
+}
+
 
 const assignRandomId = (prefix = 'rnd-') => prefix + Math.random().toString().substring(2) + Date.now();
 
@@ -140,7 +183,72 @@ function makeCodeBlocksClipboardCopiable(htmlEl) {
     return htmlEl;
 }
 
-export default function createMarkdownEditor(events, editingAreaEl) {
+//export default 
+function createMarkdownEditorx(events, editingAreaEl) {
+
+    // based on: https://github.com/StackExchange/pagedown/blob/master/demo/browser/demo.html
+
+    // the editor
+    const ta = crEl('textarea',{id:'wmd-input', 'class': 'wmd-input'});
+          
+    editingAreaEl.append(ta);
+
+    stackEditor.then(() => {
+        log('WYSIWYG loaded', Stackedit);
+        const stackedit = new Stackedit({
+            //url: '#',///editors/stackeditor.js',//'#',
+        });
+
+        // Open the iframe
+        stackedit.openFile({
+            //name: 'Filename', // with an optional filename
+            content: {
+                text: ta.value // and the Markdown content.
+            }
+        });//, true);
+
+        // Listen to StackEdit events and apply the changes to the textarea.
+        stackedit.on('fileChange', (file) => {
+            el.value = file.content.text;
+        });
+
+        // Listen to StackEdit events and apply the changes to the textarea.
+        stackedit.on('fileChange', (file) => {
+            ta.value = file.content.text;
+        });
+
+    })
+
+    var originalContent;
+
+    return {
+        // REQUIRED: doc is always OBJECT returned from server
+        setDoc(doc) { ta.value = originalContent = doc.raw; }, // 
+
+        // REQUIRED: returned content is EITHER a 'string' OR an object (e.g. { tmpSavedUrl: '3245234523452345234', svrToken: '23452345234' }
+        // - to be processed accordingly at server (must detect if string or object)
+        getContent() { return ta.value; }, // maybe always an object? so can include a server-token (1-to validate + 2-original source to see if changed)
+
+        // REQUIRED: can return:
+        // - 'string' (updated at caller everytime), or 
+        // - dom element/node (updated at caller only if root node different from previous)
+        // - allows editor to perform its own updates, async from rest of app
+        // - IF RETURN a NODE/element, must be a SINGLE CHILD (i.e. a root kid)
+        getPretty() { return '???'; },//toHtml(asHtml, ta.value); }, 
+
+        // // optional: to know that changes have been canceled
+        // // - if missing, setContent will be called instead (with same content)
+        // resetContent() { ta.value = originalContent; },
+
+        // // optional: to let us know that current is now new baseline
+        // // - if missing, ???
+        // // must BOTH be present if either is??? to be enforced by app
+        // savedContent() { originalContent = ta.value; },
+    }
+}
+
+export default 
+function createMarkdownEditor(events, editingAreaEl) {
 
     // the editor
     const ta = crEl('textarea', 'markdown-editor'); 
@@ -151,17 +259,6 @@ export default function createMarkdownEditor(events, editingAreaEl) {
 
     // content formatted for display <div md-doc>...</div>
     const asHtml = crEl('div', 'md-doc'); // single/root node returned for display
-
-    const getPretty = () => {
-        
-        const fancyMe = () => {
-            asHtml.innerHTML = toHtml(ta.value); // create basic html from markdown
-            return createTOC(makeCodeBlocksClipboardCopiable(asHtml)); // add toc and clickable code blocks
-        }
-
-        converterReady || onConverterReady.push(fancyMe);
-        return fancyMe(); // returns an html node (not a string)
-    }
 
     // optionals are to allow for dom performance optimizations: 
     // - e.g. if editor is heavy on dom code, can create once and self update thereafter
@@ -182,7 +279,11 @@ export default function createMarkdownEditor(events, editingAreaEl) {
         // - dom element/node (updated at caller only if root node different from previous)
         // - allows editor to perform its own updates, async from rest of app
         // - IF RETURN a NODE/element, must be a SINGLE CHILD (i.e. a root kid)
-        getPretty, 
+        getPretty() { return toHtml(asHtml, ta.value); }, 
+        getPrettyHtml() { 
+            toHtml(asHtml, ta.value);
+            return asHtml.innerHTML;
+        }, 
 
         // optional: to know that changes have been canceled
         // - if missing, setContent will be called instead (with same content)

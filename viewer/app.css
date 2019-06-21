@@ -153,3 +153,7 @@ xxxdiv.tooltip {
     padding: 8px;
     border-radius: 7px;
 }
+
+body div[fullpage] main div[viewer] {
+    -webkit-app-region: drag;
+  }
