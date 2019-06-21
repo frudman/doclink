@@ -76,6 +76,12 @@ div[md-doc] div[toc][is-collapsed] h2:hover:after {
     xcontent: ' \25BF'; /* same as BE but bordered only down arrow */
 }
 
+a[collapse-expand-all] {
+    margin-top: 15px;
+    border-top: 1px solid red;
+    font-size: .8em;
+}
+
 textarea[markdown-editor] {
     flex: 1; 
     font-family: monospace;

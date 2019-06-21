@@ -1,5 +1,12 @@
 "use strict"; // implied with imports below...
 
+// 1st goal: support all main platforms (mac, windows, linux)
+// - chrome & firefox: free and wide-usage
+// 2nd goal: try for native browsers
+// - safari for mac & edge for windows
+// - only if fits es20xx
+// - IE is too limited from javascript and can use edge on win7-8 now anyway (right? tbv)
+
 // todo: build this app into /dist folder as /dist/viewer.js then download statically
 
 // TODO: add build step (& VUE) to simplify adding packages below (and use babel?) AND create admin UI also

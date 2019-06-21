@@ -46,24 +46,25 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
 
     // skip headers not between min & max (e.g. only from h2 to h3)
 
-    // todo: setting to ignore headers without IDs (or other criteria) - need?
+    // todo: setting to ignore headers without IDs (or other criteria) - need???
 
     var tocHtml = '';
+    const hSelector = [...Array(max-min+1).keys()].map(i=>'h'+(min+i)).join(',');
+    const sections = [];
 
+    qsa(hSelector, htmlEl).forEach(el => {
 
-    qsa('h1,h2,h3,h4,h5,h6', htmlEl).forEach(el => {
+        sections.push(el);
+
         const num = parseInt(el.tagName.substring(1));
         if (num >= min && num <= max) {
             el.id || (el.id = assignRandomId('header-toc-'));
             tocHtml += `<a toc-${num - min} href="#${el.id}">${el.innerText}</a>`;
         }
 
-        var isCollapsed = false;
-        const isHigherHeader = el => /h\d/i.test(el.tagName) && (parseInt(el.tagName.substring(1)) <= num);
-
-        tooltip(el, {text:'click to collapse or expand this section', placement: 'top'})
-        el.addEventListener('click', () => {
-            isCollapsed = !isCollapsed;
+        // need to add to el
+        el.collapse = flag => {
+            isCollapsed = flag;
 
             // note using . nextElementSibling NOT .nextSibling because we want to SKIP #text/#comment nodes; 
             // - as per: https://www.w3schools.com/jsref/prop_node_nextsibling.asp
@@ -78,18 +79,49 @@ function createTOC(htmlEl, startCollapsed = true, min = 2, max = 3) {
                 attr('collapsed', sib, isCollapsed);
                 sib = sib.nextSibling;
             }
-        })
+        }
+
+        var isCollapsed = false;
+        const isHigherHeader = el => /h\d/i.test(el.tagName) && (parseInt(el.tagName.substring(1)) <= num);
+
+        //tooltip(el, {text:'click to collapse or expand this section', placement: 'top'})
+        attr('title', el, 'click to collapse or expand section');
+        on('click', el, () => el.collapse(!isCollapsed));
+        // {
+        //     isCollapsed = !isCollapsed;
+
+        //     // note using . nextElementSibling NOT .nextSibling because we want to SKIP #text/#comment nodes; 
+        //     // - as per: https://www.w3schools.com/jsref/prop_node_nextsibling.asp
+        //     // - also: https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+        //     // also: https://developer.mozilla.org/en-US/docs/Web/API/Node/nextSibling
+        //     // also: https://developer.mozilla.org/en-US/docs/Web/API/NonDocumentTypeChildNode/nextElementSibling
+        //     // - BUT doesn't seem to work! we [seem to] get #text nodes anyway!!!
+        //     // - it's ok because attr() will account for this (and ignore those calls)
+
+        //     var sib = el.nextElementSibling; 
+        //     while (sib && !isHigherHeader(sib)) {
+        //         attr('collapsed', sib, isCollapsed);
+        //         sib = sib.nextSibling;
+        //     }
+        // })
     });
 
     if (tocHtml) {
         // create it
-        const tocEl = crEl('div', 'toc', true ? 'is-collapsed' : '').html(`<h2>table of content</h2>${tocHtml}`);
+        const tocEl = crEl('div', 'toc', 'is-collapsed').html(`<h2>table of content</h2>${tocHtml}<a collapse-expand-all>collapse all</a>`);
 
         // give it help tip
         tooltip('h2', tocEl, {html: 'click to show/hide<br>table of content', placement: 'left'});
     
-        // make collapsable
+        // make toc collapsable/expandable
         on('click@h2', tocEl, () => toggleAttr('is-collapsed', tocEl));
+
+        // make doc sections collapsable/expandable
+        var allCollapsed = false;
+        on('click@a[collapse-expand-all', tocEl, e => {
+            e.target.text = (allCollapsed = !allCollapsed) ? 'expand all' : 'collapse all';
+            sections.forEach(h => h.collapse && h.collapse(allCollapsed));
+        })
     
         // add it
         htmlEl.prepend(tocEl);

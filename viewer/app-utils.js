@@ -1,9 +1,60 @@
 // helpers        
-export const log = console.log.bind(console);
-log.error = console.error.bind(console); // TODO: NOT WHAT YOU EXPECT!!! console.error uses 1st parm as fmt string...
-    // TODO: should accept: ('error', ...parms), (Error, ...parms), (...parms) then act like our log above
+export const log = console.log.bind(console); 
+log.info = log; // alias
+log.error = (...args) => console.error(...logArgs(args)); // different from: https://developer.mozilla.org/en-US/docs/Web/API/Console/error
+log.warning = (...args) => console.warn(...logArgs(args)); // different from: https://developer.mozilla.org/en-US/docs/Web/API/Console/warn
+log.record = (...args) => log('[important]', ...args); // not implemented; for permanent/cloud-based record keeping? (significant events?)
+
+// for example: const debug = log.group('DEBUG'); (though no real need in browser-based apps, since all msgs are debug by nature)
+// then: debug(...); debug.info(...); debug.error(...); debug.warning(...);
+// although probably should not: debug.record(...)
+
+// todo: add more options (e.g. display date/time)
+log.category = log.group = name => {
+    const groupLabel = `[${name}]:`;
+    const customLogger = (...args) => log(groupLabel, ...args); // prefix all logging with group name
+    customLogger.info = customLogger;
+    customLogger.error = (...args) => console.error(logArgs(args, groupLabel));
+    customLogger.warning = (...args) => console.warn(logArgs(args, groupLabel));
+    customLogger.record = (...args) => log.record(groupLabel, ...args);
+    return customLogger;
+}
+
+function logArgs(args, groupName = '') { 
+    
+    // used just for warn & error since first string is a "template-type %o..." string
+
+    if (typeof args.first() === 'string') {
+        const [str, parms] = fixArgs((groupName ? `${groupName} ` : ``) + args.shift())
+        return [str, ...parms];
+    }
+    else if (args.first() instanceof Error) {
+        groupName && (args.first().message = `${groupName} ` + args.first().message);
+        return args;
+    }
+    else { // should really not be here: 1st arg should ALWAYS be either a string OR an error
+        const [str, parms] = fixArgs(groupName); // oh well...
+        return [str, ...parms]; 
+    }
+
+    function fixArgs(str) {
+        const parms = [];
+        for (const a of args) {
+            if (typeof a === 'string')
+                str += ' ' + a;
+            else {
+                // available substitutions: 
+                // - https://developer.mozilla.org/en-US/docs/Web/API/console#Outputting_text_to_the_console
+                str += ' %o'; // o for object
+                parms.push(a);
+            }
+        }
+        return [str, parms];
+    }
+}
 
 // this is a PEEK last/first; should we rename it?
+// SHOULD WE make real properties? so NOT a function (like .length)
 Object.defineProperty(Array.prototype, 'last', {
     value() {
         return this.length > 0 ? this[this.length - 1] : undefined;
@@ -127,18 +178,18 @@ export const crEl = (tag, ...attrs) => {
     }    
 
     // BONUS helpers for users of crEl...
-    // todo: warn if some helpers are not initially undefined (e.g. 'text' on <script> tags)
-    const helper = (helper, fcn) => el[helper] === undefined && (el[helper] = fcn);
+    const helper = (helper, fcn) => helper in el ? log.warning(`did not replace existing <${tag}.${helper}> property`, el)
+                                                 : Object.defineProperty(el, helper, { value: fcn });
 
     helper('add', (...args) => {
         for (const arg of args)
-            el.append(arg);
+            arg && el.append(arg);
         return el; // can chain
     })
 
     // next 2 are PROBLEMATIC: SHOULD be empty (undefined) BUT...
     // ...BUT...
-    // typeof el.text is STRING when tagname === 'script'
+    // typeof el.text is STRING when tagname === 'script'|'a'
     // ...not sure why; TBI
     // ...so, at least for SCRIPT tags, CANNOT DEPEND ON/USE .text feature (hmmm...)
     helper('html', (...args) => { el.innerHTML = args.join(' '); return el; });
@@ -301,24 +352,25 @@ export function dontLeavePageIf(dontLeave) {
 }
 
 export function scrollBackToTop({
-    scrollingEl,// = '[viewer]', 
-    triggerScrollAmt = 10, 
-    scrollAttr = 'scrolled@body', 
-    scroller = 'back-to-top@a',
-    scrollerText = 'top'
+    scrollingEl,
+    triggerScrollAmt = 10, // how much drop from top before control is displayed
+    scrolledIndicatorAttr = 'scrolled', // added/removed to control when scrolled/not (used for css)
+    scroller = 'back-to-top@a', // control itself
+    scrollerText = 'top' // text displayed on control
 }) {
 
     if (!scrollingEl)
         throw new Error(`need a scrolling element to track for scrollBackToTop feature`);
 
     const [scrollerAttr, scrollerTag] = spl(scroller);
+    log('scroller info', scrollerTag, scrollerAttr, ';', scrollerText);
     const el = crEl(scrollerTag, scrollerAttr)
         .add(scrollerText)
         .on('click', () => scrollingEl.scrollTop = 0);
 
     onReady(() => {
         document.body.append(el); // wait until actual doc set to append at very end
-        on('scroll', scrollingEl, e => attr(scrollAttr, (e.target.scrollTop > triggerScrollAmt)))
+        on('scroll', scrollingEl, e => attr(scrolledIndicatorAttr, el, (e.target.scrollTop > triggerScrollAmt)))
     })
 }
 
