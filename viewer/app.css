@@ -156,4 +156,61 @@ xxxdiv.tooltip {
 
 body div[fullpage] main div[viewer] {
     -webkit-app-region: drag;
-  }
+}
+
+div[sniffx] {
+    position: fixed;
+    right: 0;
+    top: 50px;
+    background: navajowhite;
+    padding: 10px 7px 10px 9px;
+    border-top-left-radius: 50%;
+    border-bottom-left-radius: 50%;    
+    cursor: pointer;
+    xxtransition: 2s ease-out, .5s ease-in;
+    /* transitions: https://easings.net/en & https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Transitions/Using_CSS_transitions */
+    transition: background-color .5s ease, max-width 2s ease-out, max-width .5s ease-in;
+    max-width: 40px;
+    white-space: nowrap;
+
+    display: flex;
+    align-items: center;
+
+    overflow: hidden;
+}
+
+body[visible-scrollbar] div[sniffx] { right: 15px; }
+div[sniffx][two] { top: 120px; }
+
+/* \00a0 is non-breaking space for content */
+/* edit pencil: 270e       270d 2699 270f  */
+/*
+    unicode charts:
+    - https://en.wikibooks.org/wiki/Unicode/List_of_useful_symbols
+    - https://tutorialzine.com/2014/12/you-dont-need-icons-here-are-100-unicode-symbols-that-you-can-use
+    - https://graphemica.com/ [good one]
+    - 
+    - 
+    - 
+
+    settings: 2699 (gear, wrench)
+    check mark: 2713 (cursive) 2714 (straight) 2705 (box) 2611 (box)
+
+    duplicate: 2398 (next page but looks like what we want
+
+    2630: hamburger
+
+*/
+
+div[sniffx]::before { 
+    content: "\1f4dd"; 
+    font-size: 1.85em; 
+    xxtransform: rotate(90deg); 
+    margin-right: 10px;
+    xxdisplay: inline-block;
+}
+
+div[sniffx]:hover { 
+    max-width: 100%;
+    background: white;
+}

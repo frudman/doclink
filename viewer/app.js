@@ -7,6 +7,10 @@
 // - only if fits es20xx
 // - IE is too limited from javascript and can use edge on win7-8 now anyway (right? tbv)
 
+// To ask me a question please drop $5 at patreon
+// - e.g. (end of page) http://xahlee.info/comp/unicode_user_interface_icons.html
+// - also: https://www.patreon.com/xahlee
+
 // todo: build this app into /dist folder as /dist/viewer.js then download statically
 
 // TODO: add build step (& VUE) to simplify adding packages below (and use babel?) AND create admin UI also
@@ -112,6 +116,30 @@ function showDocument(docInfo) {
                 }
             } },
         ];
+
+        document.body.append(crEl('div', 'sniffx').text('edit'));
+        document.body.append(crEl('div', 'sniffx two').text('settings'));
+
+        const m = qs('main div[viewer]');
+        function sizeup() {
+            // https://developer.mozilla.org/en-US/docs/Web/API/Element/clientWidth (nice illustration)
+            // - does NOT include margin, border thickness, scrollbars (just inner content including padding)
+            // - 0 for inline elements
+            // https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollWidth
+            // scrollWidth === clientWidth IF content first wothout HORIZ scrollbar
+
+            // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetWidth
+            // - includes borders, padding, vert scrollbar (if rendered) [0 if el is hidden: e.g. display none]
+
+            // below DOES NOT take into account border thickness (if any)
+
+            const outside = m.offsetWidth,
+                  inside = m.clientWidth, // also m.scrollWidth
+                  scrollerWidth = outside - inside;
+            attr('visible-scrollbar@body', scrollerWidth > 0);
+        }
+        on('resize', window, sizeup);
+        sizeup(); // first time
 
         var typ;
 
@@ -221,6 +249,10 @@ onReady(() => {
 
     log('in main window')
 
+    // unicode: https://unicode-table.com/en/
+    // unicode: https://www.rapidtables.com/code/text/unicode-characters.html
+    document.title = 'hi fweddy!!! 😊😊';
+
     // which document?
     const doc = qs('meta[name=document]').content;
 
@@ -251,6 +283,13 @@ onReady(() => {
 });
 
 function appFor2ndWindow() {
+
+    // todo: ask not for /app.html but for /preview/document-file-name
+
+    // lots of cpu so if win closed, should stop
+    // also, do convertion to html separately, then pass updates to window
+    // - check if already in process, then wait until done (if user typing fast!)
+
     log('in 2nd window');
     log('helloe', window.opener);
 

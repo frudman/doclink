@@ -113,19 +113,21 @@ export function attr(...args) { // ('attr-name[@selector]'[, domEl], value)
           [attrName, selector] = spl(args.shift()),
           domEl = args.shift(); // should be only arg left (if any)
 
+    ///\s+/.test(attrName) && log('attr', attrName, ';', value, selector, ';', isListener, !!domEl);
+
     if (selector) { // cases 3 & 4
         const els = qsa(selector, domEl);
         for (const el of els)
-            setAttr(attrName, el, value);
+            updateAttr(attrName, el, value);
     }
     else if (domEl) { // case 1
-        setAttr(attrName, domEl, value);
+        updateAttr(attrName, domEl, value);
     }
     else { // case 2
         throw new Error(`set attribute (attr) requires either '...@selector' or a dom element (or both) - got neither`)
     }
-
-    function setAttr(attr, el, value) {
+    
+    function updateAttr(attr, el, value) {
 
         // strategy: we check to make sure we can (add|remove) attr (or listener)
         // because not all elements can do this (must have .nodeType === Node.ELEMENT_NODE)
@@ -138,14 +140,16 @@ export function attr(...args) { // ('attr-name[@selector]'[, domEl], value)
         // can have cleaner code by just calling attr() wihtout having to first check for each
         // node's type (e.g. createTOC function in markdown-editor.js)
 
+
         if (isListener) // setting an event listener
             el.addEventListener && el.addEventListener(attr.replace(/^on[-_]*/i, '').toLowerCase(), value);
-        else if (value === true)
-            el.setAttribute && el.setAttribute(attr, '');
-        else if (value === false)
-            el.removeAttribute && el.removeAttribute(attr);
-        else
-        el.setAttribute && el.setAttribute(attr, (value || '').toString()); 
+        else 
+            (value === true) ? setAttr('')
+          : (value === false) ? removeAttr()
+          : setAttr((value || '').toString());
+
+        function setAttr(v) { el.setAttribute && attr.split(/\s+/).forEach(a => el.setAttribute(a, v)); }
+        function removeAttr() { el.removeAttribute && attr.split(/\s+/).forEach(a => el.removeAttribute(a)); }        
     }
 }
 
@@ -772,4 +776,3 @@ export function tooltip(...args) {
     tooltips(elx, options); 
     return elx; // chaining
 }
-

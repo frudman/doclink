@@ -262,7 +262,26 @@ function startLocalServer() {
     }
 }
 
+// eventually, for our browser app:
+// chrome/firefox: mac, windows (10, 8.1, 7?), linux (ubuntu only?)
+// - covers all OS platforms
+// then: safari on mac; Edge on windows
+// - no IE? (likely not, since edge avail on all now (right?); but if not, chrome/firefox)
+
+// iPhone/Android?
+// - for monitoring & some admin
+// iPads, tablets:
+// - for monitoring & more admin; minor content edits
+// Desktop:
+// - admin, content creation
+
 function useAsViewer(doc) {
+
+    // - https://peter.sh/experiments/chromium-command-line-switches/
+    // - http://www.chromium.org/developers/how-tos/run-chromium-with-flags (window, linux, mac)
+    // - https://v8.dev/
+
+
     doc && startLocalServer().then(stickAround => execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
         // if error launching browser, exit with a distinct error code (19!) [killing server as well, if it was launched here]
         // if no error, exit if only launched browser (running on its own, so we're done)

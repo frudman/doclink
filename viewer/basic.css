@@ -12,10 +12,10 @@
     box-sizing: border-box;
 
     /* https://css-tricks.com/things-it-might-be-funuseful-to-try-the-universal-selector-on/ */
-    transition: all 0.2s ease;
+    /*transition: all 0.2s ease;*/
     background-repeat: no-repeat;
     /* position: relative; SCREWS UP OUR FLEX BOX DISPLAY on the main page*/ 
-    vertical-align: middle;
+    /*vertical-align: middle;*/
 }
 
 html, body {
