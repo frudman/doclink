@@ -8,7 +8,7 @@
 // - chmod +x index.js 
 
 // if already running, stop it with: curl localhost:56789/stop
-// start manually:
+// start manually: [cd ~/simplytel-dev/doclink]
 // - from this folder: node . start
 
 // pgrep -f LINUX | xargs kill (or maybe pkill -f LINUX)
@@ -236,7 +236,10 @@ function startLocalServer() {
             }
             else if (savingDoc) {
                 saveDocument(docNameToSave, req) // never fails
-                    .then(updatedResults => res.json(updatedResults))
+                    .then(updatedResults => {
+                        log('y', updatedResults);
+                        res.json(updatedResults);
+                    })
             }
             else {
                 tryStaticFiles(res, `${__dirname}/viewer${urlPath}`)
@@ -275,11 +278,40 @@ function startLocalServer() {
 // Desktop:
 // - admin, content creation
 
+/* google chrome as an app:
+
+    - for terminal:
+        - alias gc="/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome"
+
+    - All available switches:
+        - https://peter.sh/experiments/chromium-command-line-switches/
+        - also to read:
+            - http://www.chromium.org/developers/how-tos/run-chromium-with-flags (window, linux, mac)
+            - https://v8.dev/
+
+    - Switches of interest (more to explore):
+        --enable-browser-side-navigation  
+        --enable-mac-views-native-app-windows  
+        --load-and-launch-app 
+        --no-first-run 
+        --no-startup-window 
+        --process-per-site 
+        --process-per-tab  
+        --renderer   
+        --restore-last-session  
+        --silent-launch  
+        --site-per-process   
+        --timeout  
+        --bwsi
+
+    - How to create a chrome app & shortcut:
+        - https://www.thewindowsclub.com/use-google-chrome-in-application-mode
+        - https://superuser.com/questions/1376060/google-chrome-no-longer-allows-me-to-create-shortcuts-to-open-tabs-as-windows
+*/
+
 function useAsViewer(doc) {
 
     // - https://peter.sh/experiments/chromium-command-line-switches/
-    // - http://www.chromium.org/developers/how-tos/run-chromium-with-flags (window, linux, mac)
-    // - https://v8.dev/
 
 
     doc && startLocalServer().then(stickAround => execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
@@ -300,6 +332,8 @@ function saveDocument(filename, request) {
 
                 // save this TO FILE!!!
                 fs.writeFileSync(filename, plainBody); // default is utf-8 (what we want)
+
+                log('written!!!', filename);
 
                 // lastly...
                 resolve(fmtDocMD(filename, plainBody)); // may already have been rejected if there was an error...
@@ -376,7 +410,10 @@ function fmtDocMD(doc, raw) {
 
 
     //return { doc, ...getTypeAndEditor(doc), plain, html:`<h2 toc>table of content</h2>` + markdown.render('[[TOC]]\n\n' + plain), };
-    return { doc, ...getContentEditorType(doc), raw };//, html: markdown.render(raw), };
+    const x = { doc, ...getContentEditorType(doc), raw };//, html: markdown.render(raw), };
+    log('X', x);
+
+    return x;
 
     // could leave html blank to let local editor do initial formatting
 }

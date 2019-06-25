@@ -16,6 +16,11 @@
 // TODO: add build step (& VUE) to simplify adding packages below (and use babel?) AND create admin UI also
 
 
+// TO CREATE DESKTOP LINK:
+// - cd simplytel-dev/doclink/
+// - 
+
+
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
 
@@ -23,7 +28,7 @@ import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs,
 
 import textEditor from './editors/text-editor.js'; // a plain text editor (also used as default for unknown)
 import markdownEditor from './editors/markdown-editor.js'; // [re-]formatting done on server
-// import richEditor from './editors/rich-editor.js'; // uses tinymce
+import richEditor from './editors/rich-editor.js'; // uses tinymce
 // import binaryEditor from './editors/binary-editor.js'; // used only to update pure binary files with no view component (drag-drop-select)
 // import imageEditor from './editors/image-editor.js'; // to display (i.e. view) or update (drag-drop-select)
 // import audioEditor from './editors/audio-editor.js'; // to display (i.e. view) or update (drag-drop-select)
@@ -35,13 +40,14 @@ const contentEditors = {
         //binary: binaryEditor, // default for NON-text-based files
     },
     'markdown-editor' : markdownEditor,
-    // 'rich-editor' : richEditor,
+    'rich-editor' : richEditor,
     // 'image-editor': imageEditor,
     // 'audio-editor': audioEditor,
     // 'video-editor': videoEditor,
 }
 
 function whichEditor(preferedEditor, isText) {
+    log('we', preferedEditor, isText);
     var create;
     if (Array.isArray(preferedEditor))
         for (const edt of preferedEditor) {
@@ -50,6 +56,8 @@ function whichEditor(preferedEditor, isText) {
         }
     else
         create = contentEditors[preferedEditor]
+
+    log('we2', create, ';');
 
     return {create: create || contentEditors.default[isText ? 'text' : 'binary'] };
 }
@@ -156,6 +164,12 @@ function showDocument(docInfo) {
 
         const events = new EventEmitter();
         const editor = whichEditor(preferedEditor, isText).create(events, editingArea);
+        // .then(edt => {
+        //     edt.create(events, editingArea); MAKE THIS A Promise...
+        //     return edt;
+
+        //     or must be await...
+        // });
 
         const refreshViewer = docUpdates => {
             docUpdates && editor.setDoc(docUpdates);
@@ -210,8 +224,14 @@ function showDocument(docInfo) {
 
         function saveChanges() {
             const updatedContent = editor.getContent(); // can be a STRING or an OBJECT
-            post(`/save-document${doc}`, updatedContent).then(resp => resp.json())
+            //log('saving content', updatedContent, ';')
+            post(`/save-document${doc}`, updatedContent)
+                .then(resp => {
+                    log('1st back', resp)//.data);
+                    return resp.json();
+                })
                 .then(newDoc => {
+                    log('2nd x', newDoc);
 
                     // todo: test on delays; what to do with save/cancel buttons
                     //       since local, less likely for delay (s3 also)

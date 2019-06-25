@@ -416,14 +416,16 @@ export function onCtrlSave(action) {
 
 export const post = (...args) => { // url[,headers],body
 
+    log('postaging', args);
+
     const url = args.shift(), // always first
           body = args.pop(), // always last
           headers = args.shift() || {}; // always after url
 
     if (typeof body === 'string')
-        fetch(url, { method: 'post', body, headers });
+        return fetch(url, { method: 'post', body, headers });
     else
-        fetch(url, { method: 'post', headers: {'Content-Type': 'application/json', ...headers}, body: JSON.stringify(data), });
+        return fetch(url, { method: 'post', headers: {'Content-Type': 'application/json', ...headers}, body: JSON.stringify(data), });
 
     // maybe also: postForm(...) then use 'Content-Type': 'application/x-www-form-urlencoded'
 }

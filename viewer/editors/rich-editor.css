@@ -1,0 +1,5 @@
+div[editor] div.tox.tox-tinymce {
+    flex: 1;
+}
+
+div[editor] div.tox-statusbar { display: none; }

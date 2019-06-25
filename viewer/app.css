@@ -214,3 +214,20 @@ div[sniffx]:hover {
     max-width: 100%;
     background: white;
 }
+
+/* styled scrollbars:
+    - not yet standard and NOT supported on firefox, so not ready for primetime
+        - https://css-tricks.com/the-current-state-of-styling-scrollbars/
+        - https://www.w3schools.com/howto/howto_css_custom_scrollbar.asp
+        - VERY GOOD READ:
+            - https://developers.google.com/web/updates/2017/03/custom-scrollbar
+            - plus simple code (copy) for setting it up
+*/
+
+/* EDITORS
+    - stackedit for markdown (converts B/I to **b** and *i* on the fly)
+        - very nice interface: https://stackedit.io/app#
+            - github: https://github.com/benweet/stackedit
+            - source(?): https://github.com/benweet/stackedit.js/tree/master/docs
+            - doc: https://benweet.github.io/stackedit.js/
+*/

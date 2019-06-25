@@ -54,7 +54,7 @@ export default function createTextEditor(events, editingAreaEl) {
     }
 
     return {
-        setContent(doc) { ta.value = doc.raw; },
+        setDoc(doc) { ta.value = doc.raw; },
         getContent() { return ta.value; },
         getPretty() { return pretty(ta.value); }
     }
