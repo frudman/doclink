@@ -21,7 +21,7 @@ import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag
 // - https://developer.mozilla.org/en-US/docs/Web/Events
 
 
-import {encrypt, decrypt} from './encrypt-decrypt.js'; // need .js postfix for node server to find file
+import {encrypt, decrypt} from './encrypt-decrypt.js'; // need .js postfix to help node server find file
 
 function testEncDec() {
     const pwd = 'asdfas1343423^%$&$%  8756234a456345634563456dfghdfghdfsda4567(&(&*^',
@@ -321,8 +321,9 @@ function makeItTiny(api) {
                 image: '/custom url here', // then target this button to add <img> tag there
 
                 // todo: for icon, need a filter-like icon (search icon is same as search & replace)
-                icon: 'search', // from https://community.tiny.cloud/communityQuestion?id=90661000000IgnsAAC
+                //icon: 'search', // from https://community.tiny.cloud/communityQuestion?id=90661000000IgnsAAC
                 // required to be replaced below: use better/simpler technique (e.g. just the title text bit)
+                // https://developer.mozilla.org/en-US/docs/Web/API/Element/outerHTML
 
 
 
@@ -351,13 +352,26 @@ function makeItTiny(api) {
                         })
                         btn.append(inp);    
 
-                        const icon = qs('svg', btn);
+                        //const icon = qs('svg', btn);
                         //log('icon', icon, icon.parentElement);
-                        const par = icon.parentElement;
+                        //const par = icon.parentElement;
+
+                        function crIcon(svgSrc) {
+                            // spanner is what tinymce normally generates to contain the icon
+                            const spanner = crEl('span', {'class': 'tox-icon tox-tbtn__icon-wrap'}); // as per tinymce 5.?
+                            btnx().prepend(spanner); // so we do the same
+                            const ph = crEl('div'); // placeholder
+                            spanner.append(ph); // must have a parent for .outerHTML to work
+                            ph.outerHTML = svgSrc; // ph still refs old div; "new" element is not reachable from ph ref...
+                            attr('width@svg', spanner, 24); // ...so reach it indirectly (i.e. an svg within our spanner)
+                            attr('height@svg', spanner, 24);
+                        }
 
                         const iconUrl = `/editors/icon-edit.svg`;//`/editors/icon-bland-person.svg`; // '/editors/icon-filter-search.2.svg'
                         fetch(iconUrl)
                             .then(resp => resp.text()).then(svgIcon => {
+                                crIcon(svgIcon);
+                                return;
                                 // yey! node returned proper 'image/svg+xml' content type (how???)
                                 //const svgIcon = resp.text();
                                 //log('got svr icon?', svgIcon);
