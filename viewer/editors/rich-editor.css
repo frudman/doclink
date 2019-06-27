@@ -3,3 +3,19 @@ div[editor] div.tox.tox-tinymce {
 }
 
 div[editor] div.tox-statusbar { display: none; }
+
+/* button[filter-searching].tox-tbtn.tox-tbtn--select {
+    margin-right: 80px;
+} */
+
+input[filtering-search-term] { display: none; }
+
+button[filter-searching] input[filtering-search-term] {
+    display: block;
+    width: 120px;
+    border: none;
+    outline: none;
+    font-size: 1.1em;
+}
+
+[fs-hidden] { display: none; }
