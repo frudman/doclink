@@ -44,7 +44,7 @@ const YEAR = new Date().getFullYear();
 
 
 // helpers ---
-const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles, markdown } = require('./server-utils');
+const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles } = require('./server-utils');
 
 const path = require('path'),
       fs = require('fs'),

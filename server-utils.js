@@ -1,13 +1,13 @@
 const log = console.log.bind(console);
 log.error = console.error.bind(console); // TODO: console.error has DIFFERENT parms expectation than we do (1st string is a FMT string)
+// - see code from viewer sode
 
 const fs = require('fs'),
       http = require('http');
 
 
 // --- MODIFYING RUNTIME ENVIRONMENT
-//const http = require('http');
-Object.defineProperty(require('http').ServerResponse.prototype, 'json', {
+Object.defineProperty(http.ServerResponse.prototype, 'json', {
     value(...args) {
         const obj = args.pop(), // always last
               code = args.pop() || 200;
@@ -31,7 +31,7 @@ Object.defineProperty(Array.prototype, 'first', {
 
 // enables non-js requires: e.g. require('./text-based-file.css')
 `txt html css x.js` // .x.js for template-based .js code (so won't interfere with require processing for normal modules)
-    .split(' ') 
+    .split(/\s+/) 
     .forEach(ext => require.extensions[`.${ext}`] = (module, file) => module.exports = fs.readFileSync(file, 'utf8'));
 
 
@@ -41,9 +41,11 @@ const sleep = delayInMS => new Promise(resolve => setTimeout(resolve, delayInMS)
 
 function htmlNoPrivateComments(html) {
     // private comments start with '<!--- ' instead of '<!--' (3 dashes AND a space)
+    // - they MUST also end with a space before terminating -->
     return html.replace(/\s*[<][!][-]{3,}\s+.*?\s+[-]{2,}[>]/g, ' ');
 }
 
+// convenient simple means to get text-based resource from another server
 function httpGet(url) {
     return new Promise((resolve, reject) => {
         http.get(url, resp => {
@@ -54,17 +56,22 @@ function httpGet(url) {
     });
 }
 
-function tryStaticFiles(res, ...files) { // last parm may be function to send first write(s): a "preamble" if static file is valid
+function tryStaticFiles(resp, ...files) { // last parm may be function to send first write(s): a "preamble" if static file is valid
+
+    // todo: could add check to see if 'file' is a directory, send file/index.??? instead
+    // - ???: if only a single index.ext file, send that; if more than once (e.g. .js .css .html), then what?
+    //      - could pass "expectation"? 
+    // - OR, if there's an extension (e.g. abc.xyz) try for abc/index.xyz (if no abc.xyz)
 
     return new Promise((resolve,reject) => {
         const preamble = typeof files.last() === 'function' ? files.pop() 
-                : file => res.writeHead(200, { 'Content-Type': mimetype(file, utfType(file)) });
+                : file => resp.writeHead(200, { 'Content-Type': mimetype(file, utfType(file)) });
         const file = files.shift(); // first one
         fs.createReadStream(file)
             .on('error', err => {
                 if (err.code === 'ENOENT') { // Error - NO [such] ENTry
                     if (files.length)
-                        tryStaticFiles(res, ...files, preamble) // some recursion
+                        tryStaticFiles(resp, ...files, preamble) // some recursion
                             .then(resolve)
                             .catch(reject);
                     else 
@@ -72,24 +79,24 @@ function tryStaticFiles(res, ...files) { // last parm may be function to send fi
                 }
                 else {
                     err.file = file; // which one failed
-                    reject(err);
+                    reject(err); // e.g. no such directory; can't open for read; ...
                 }
             })
             .on('open', () => preamble(file)) // file is good so give caller chance to write something first (e.g. headers)
             .on('end', () => resolve(file)) // pipe auto-ends res (https://nodejs.org/api/stream.html#stream_readable_pipe_destination_options)
-            .pipe(res);
+            .pipe(resp);
     });
 }
 
 // https://www.npmjs.com/package/mime (e.g. from 'filename.css' to 'text/css')
 const mimetype = (file,charset) => require('mime/lite').getType(file) + (charset ? `; charset=${charset}` : ``);
-const utfType = file => /[.](css|m?js|html)$/i.test(file) ? 'utf-8' : ''; // basically...
+const utfType = file => /[.](css|m?js|html|svg)$/i.test(file) ? 'utf-8' : ''; // basically...
 
-// for when converting markdown to html
-const markdownIt = require(`markdown-it`),
-      markdown = new markdownIt()
-        .use(require(`markdown-it-anchor`))
-        .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
+// // for when converting markdown to html
+// const markdownIt = require(`markdown-it`),
+//       markdown = new markdownIt()
+//         .use(require(`markdown-it-anchor`))
+//         .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
 
 module.exports = {
     log, 
@@ -100,6 +107,6 @@ module.exports = {
     tryStaticFiles,
     mimetype,
     utfType,
-    markdown,
+    //markdown,
 }
         

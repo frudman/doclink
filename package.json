@@ -13,9 +13,6 @@
   "author": "Frederic Rudman",
   "license": "ISC",
   "dependencies": {
-    "markdown-it": "^8.4.2",
-    "markdown-it-anchor": "^5.2.4",
-    "markdown-it-table-of-contents": "^0.4.4",
     "mime": "^2.4.4",
     "sharp": "^0.22.1"
   }
