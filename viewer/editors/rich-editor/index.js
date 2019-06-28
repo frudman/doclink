@@ -1,4 +1,4 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip, asyncFeature } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip, asyncFeature, encrypt, decrypt } from '../../app/utils.js';
 
 // example of an externally loaded editor
 
@@ -20,8 +20,6 @@ import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag
 // LOTS of interesting events available in javascript:
 // - https://developer.mozilla.org/en-US/docs/Web/Events
 
-
-import {encrypt, decrypt} from './encrypt-decrypt.js'; // need .js postfix to help node server find file
 
 function testEncDec() {
     const pwd = 'asdfas1343423^%$&$%  8756234a456345634563456dfghdfghdfsda4567(&(&*^',
@@ -71,7 +69,7 @@ function testEncDec() {
 
 //testEncDec();
 
-loadCSS.fromUrl('/editors/rich-editor.css');
+loadCSS.fromUrl('/editors/rich-editor/index.css'); // requires absolute path (else goes off /doclink-viewer/Users/frederic/...)
 
 const richEditor = asyncFeature(api => api); // placeholder just returns base api
 
@@ -352,34 +350,49 @@ function makeItTiny(api) {
                         })
                         btn.append(inp);    
 
-                        //const icon = qs('svg', btn);
-                        //log('icon', icon, icon.parentElement);
-                        //const par = icon.parentElement;
+                        function crTinymceTBIcon(tinyBtn, svgSrc, width = 24, height = 24) {
 
-                        function crIcon(svgSrc) {
-                            // spanner is what tinymce normally generates to contain the icon
-                            const spanner = crEl('span', {'class': 'tox-icon tox-tbtn__icon-wrap'}); // as per tinymce 5.?
-                            btnx().prepend(spanner); // so we do the same
-                            const ph = crEl('div'); // placeholder
-                            spanner.append(ph); // must have a parent for .outerHTML to work
-                            ph.outerHTML = svgSrc; // ph still refs old div; "new" element is not reachable from ph ref...
-                            attr('width@svg', spanner, 24); // ...so reach it indirectly (i.e. an svg within our spanner)
-                            attr('height@svg', spanner, 24);
+                            // some minimal validation (e.g. in case got a not-found html response)
+                            if (!/[<]svg\s+/.test(svgSrc || '') || !/[<][/]svg[>]/.test(svgSrc || ''))
+                                throw new Error(`invalid svg content`);
+
+                            // as per: https://developer.mozilla.org/en-US/docs/Web/API/Element/outerHTML#Notes
+                            // (1) cannot set outerHTML of an element until it has a parent
+                            // (2) initial ref NOT updated to reflect "new element" (i.e. after outerHTML assignement)
+
+                            // see if an icon is already there (based on tinymce 5.0.7 classes)...
+                            // todo: warning: tox may be for 'tinymce oxide' theme; this may fail if using another theme...
+                            const tinymceClasses = 'tox-icon tox-tbtn__icon-wrap', // from inspect-element (chrome dev tools)
+                                  existingParentSpan = qs('span.' + tinymceClasses.split(/\s+/).join('.'), tinyBtn),
+                                  existingSvg = existingParentSpan && qs('svg', existingParentSpan);
+
+                            if (existingSvg) { // ...yes, so replace it
+                                setCustomSvg(existingSvg, existingParentSpan);
+                            }
+                            else { // ...nope, so create from scratch
+                                const newSpanEl = crEl('span', {'class': tinymceClasses}); 
+                                tinyBtn.prepend(newSpanEl); // ...and it should be 1st element in button (hence prepend)
+                                const phEl = crEl('div'); // placeholder element for our custom svg element
+                                newSpanEl.append(phEl); // as per (1) above, must have a parent for .outerHTML to work
+                                setCustomSvg(phEl, newSpanEl, tinyBtn);
+                            }
+
+                            function setCustomSvg(svg, svgParent) {
+                                svg.outerHTML = svgSrc; // now update its content to our custom svg
+
+                                // as per (2), 'svg' still refs old placeholder (i.e. the initial <div> above)
+                                // since our "new element" is not reachable from ph ref, use query selectors to reach it...
+                                attr('width@svg', svgParent, width); // ...namely, 'svg' tag within its parent
+                                attr('height@svg', svgParent, height); // ...ditto    
+                            }
                         }
 
-                        const iconUrl = `/editors/icon-edit.svg`;//`/editors/icon-bland-person.svg`; // '/editors/icon-filter-search.2.svg'
+                        //const iconUrl = `/editors/icon-edit.svg`;//`/editors/icon-bland-person.svg`; // '/editors/icon-filter-search.2.svg'
+                        const iconUrl = `/editors/rich-editor/icon-filter.svg`;
                         fetch(iconUrl)
-                            .then(resp => resp.text()).then(svgIcon => {
-                                crIcon(svgIcon);
-                                return;
-                                // yey! node returned proper 'image/svg+xml' content type (how???)
-                                //const svgIcon = resp.text();
-                                //log('got svr icon?', svgIcon);
-                                par.innerHTML = svgIcon;//.appendChild(svgIcon);
-                                attr('width@svg', par, 24);
-                                attr('height@svg', par, 24);
-                            })
-                            .catch(err => log('failed to get server icon', err));
+                            .then(resp => resp.status === 200 && resp.text())
+                            .then(svgIcon => crTinymceTBIcon(btnx(), svgIcon))
+                            .catch(err => log.warning('failed to get server icon', err));
                     }
                 },
                 onAction(api) {

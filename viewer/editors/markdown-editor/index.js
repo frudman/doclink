@@ -1,4 +1,4 @@
-import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip, asyncFeature } from '../app-utils.js';
+import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag, copyToClipboard, on, tooltip, asyncFeature } from '../../app/utils.js';
 
 // example of an externally loaded editor
 
@@ -16,7 +16,9 @@ import { crEl, loadCSS, loadSCRIPT, log, sleep, qs, qsa, toggleAttr, attr, byTag
 // COULD: edit markdown as raw text or easy-editor
 
 
-loadCSS.fromUrl('/editors/markdown-editor.css');
+loadCSS.fromUrl('/editors/markdown-editor/index.css');///editors/markdown-editor.css');
+
+log('aa', typeof __dirname, location);
 
 const toHtml = asyncFeature((asHtml, mdText) => {
     asHtml.innerHTML = `<div tmp><pre>${mdText}</pre></div>`;
@@ -34,52 +36,54 @@ loadSCRIPT.fromUrl('https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js')
     }))
     .catch(err => log('whoops getting showdown', err)); 
 
-// based on: https://benweet.github.io/stackedit.js/    
-// <script src="https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js"></script>    
-const stackEditor = new Promise((resolve,reject) => {
-    loadSCRIPT.fromUrl(`/editors/stackeditor.js`)//https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js`)
+if (false) {
+
+    // based on: https://benweet.github.io/stackedit.js/    
+    // <script src="https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js"></script>    
+    const stackEditor = new Promise((resolve,reject) => {
+        loadSCRIPT.fromUrl(`/editors/stackeditor.js`)//https://unpkg.com/stackedit-js@1.0.7/docs/lib/stackedit.min.js`)
+            .then(x => {
+                resolve();
+            })
+            .catch(err => log('WYSIWYG loading error', err)); 
+    });
+
+    // https://cdn.jsdelivr.net/gh/benweet/stackedit.js/
+    // https://cdn.jsdelivr.net/gh/benweet/stackedit.js@1.0.7/docs/lib/stackedit.min.js
+
+    // https://github.com/openlibrary/wmd
+
+
+
+    // https://github.com/StackExchange/pagedown
+    // https://www.jsdelivr.com/package/npm/pagedown
+    // https://cdn.jsdelivr.net/npm/pagedown/
+    // read: https://gomakethings.com/how-to-turn-any-github-repo-into-a-cdn/
+    // based on: https://cdn.jsdelivr.net/gh/{username}/{repo}/ to turn github projects into CDNs
+    // - https://cdn.jsdelivr.net/gh/StackExchange/pagedown/ (note trailing slash)
+    // NOTE: may also want to get wmd-buttons.png
+    // HOW TO USE: https://code.google.com/archive/p/pagedown/wikis/PageDown.wiki (old but only instructions I found)
+
+    // https://github.com/StackExchange/pagedown/blob/master/demo/browser/demo.html
+    const pagedownCDN = `https://cdn.jsdelivr.net/gh/StackExchange/pagedown`;
+    var editor;
+    var ready = false;
+    loadCSS.fromUrl('/editors/pagedown-styles.css');
+    loadSCRIPT.fromUrl(`${pagedownCDN}/Markdown.Converter.js`, // based on showdown apparently
+                        `${pagedownCDN}/Markdown.Sanitizer.js`,
+                        `${pagedownCDN}/Markdown.Editor.js`) // NOT available at unpkg.com or regular jsdelivr.com/npm/...
         .then(x => {
-            resolve();
+            log('WYSIWYG loaded', Markdown.Converter);
+            var converter = Markdown.getSanitizingConverter();
+            log('conv', converter);
+
+            editor = new Markdown.Editor(converter)
+            log('editor', editor);
+            ready && editor.run();
+
+            // #wmd-button-bar, #wmd-input, and #wmd-preview
         })
         .catch(err => log('WYSIWYG loading error', err)); 
-});
-
-// https://cdn.jsdelivr.net/gh/benweet/stackedit.js/
-// https://cdn.jsdelivr.net/gh/benweet/stackedit.js@1.0.7/docs/lib/stackedit.min.js
-
-// https://github.com/openlibrary/wmd
-
-
-if (false) {
-// https://github.com/StackExchange/pagedown
-// https://www.jsdelivr.com/package/npm/pagedown
-// https://cdn.jsdelivr.net/npm/pagedown/
-// read: https://gomakethings.com/how-to-turn-any-github-repo-into-a-cdn/
-// based on: https://cdn.jsdelivr.net/gh/{username}/{repo}/ to turn github projects into CDNs
-// - https://cdn.jsdelivr.net/gh/StackExchange/pagedown/ (note trailing slash)
-// NOTE: may also want to get wmd-buttons.png
-// HOW TO USE: https://code.google.com/archive/p/pagedown/wikis/PageDown.wiki (old but only instructions I found)
-
-// https://github.com/StackExchange/pagedown/blob/master/demo/browser/demo.html
-const pagedownCDN = `https://cdn.jsdelivr.net/gh/StackExchange/pagedown`;
-var editor;
-var ready = false;
-loadCSS.fromUrl('/editors/pagedown-styles.css');
-loadSCRIPT.fromUrl(`${pagedownCDN}/Markdown.Converter.js`, // based on showdown apparently
-                    `${pagedownCDN}/Markdown.Sanitizer.js`,
-                    `${pagedownCDN}/Markdown.Editor.js`) // NOT available at unpkg.com or regular jsdelivr.com/npm/...
-    .then(x => {
-        log('WYSIWYG loaded', Markdown.Converter);
-        var converter = Markdown.getSanitizingConverter();
-        log('conv', converter);
-
-        editor = new Markdown.Editor(converter)
-        log('editor', editor);
-        ready && editor.run();
-
-        // #wmd-button-bar, #wmd-input, and #wmd-preview
-    })
-    .catch(err => log('WYSIWYG loading error', err)); 
 }
 
 

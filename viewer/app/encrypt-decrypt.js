@@ -9,7 +9,7 @@
 
 // SHA-512 SUPPORTED (?): might replace in our javascript utils
 
-import { log } from '../app-utils.js';
+//import { log } from './app-utils.js';
 
 // todo: implement encryptToBytes() & decryptFromBytes() (when sending to server, no need to convert to strings (more work & more data))
 

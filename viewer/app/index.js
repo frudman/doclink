@@ -24,11 +24,11 @@
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
 
-import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, on, attr, scrollBackToTop, tooltip} from '/app-utils.js';
+import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, on, attr, scrollBackToTop, tooltip} from './utils.js';
 
-import textEditor from './editors/text-editor.js'; // a plain text editor (also used as default for unknown)
-import markdownEditor from './editors/markdown-editor.js'; // [re-]formatting done on server
-import richEditor from './editors/rich-editor.js'; // uses tinymce
+import textEditor from '../editors/text-editor/index.js'; // a plain text editor (also used as default for unknown)
+import markdownEditor from '../editors/markdown-editor/index.js'; // [re-]formatting done on server
+import richEditor from '../editors/rich-editor/index.js'; // uses tinymce
 // import binaryEditor from './editors/binary-editor.js'; // used only to update pure binary files with no view component (drag-drop-select)
 // import imageEditor from './editors/image-editor.js'; // to display (i.e. view) or update (drag-drop-select)
 // import audioEditor from './editors/audio-editor.js'; // to display (i.e. view) or update (drag-drop-select)

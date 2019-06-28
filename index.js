@@ -44,7 +44,7 @@ const YEAR = new Date().getFullYear();
 
 
 // helpers ---
-const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles, markdown } = require('./utils');
+const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles, markdown } = require('./server-utils');
 
 const path = require('path'),
       fs = require('fs'),
@@ -84,9 +84,9 @@ const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
     YEAR: new Date().getFullYear() + 1,
 });
 
-const srcLargestIcon = `${__dirname}/src-appicon-1024x1024.png`;
-const commonAppIcons = `${__dirname}/macos-appicon.icns`;
-const commonInfoPlist = `${__dirname}/macos-info.plist`;
+const srcLargestIcon = `${__dirname}/mac-app/src-appicon-1024x1024.png`;
+const commonAppIcons = `${__dirname}/mac-app/macos-appicon.icns`;
+const commonInfoPlist = `${__dirname}/mac-app/macos-info.plist`;
 
 //#endregion
 
@@ -203,15 +203,13 @@ function startLocalServer() {
                 [openFolder, folderNameToOpen] = urlPath.match(/^[/]open-folder([/].+)/) || [],
                 [editDocument, docNameToEdit] = urlPath.match(/^[/]edit-document([/].+)/) || [],
                 [gettingDoc, docName] = urlPath.match(/^[/]get-document([/].+)/) || [],
-                [savingDoc, docNameToSave] = urlPath.match(/^[/]save-document([/].+)/) || [];;
+                [savingDoc, docNameToSave] = urlPath.match(/^[/]save-document([/].+)/) || [],
+                [isViewingDoc, docPath] = urlPath.match(/^[/]doclink-viewer([/].+)/i) || []; // must match prefix in useAsViewer()
             
             // note: error in nodejs docs
             // - ref: https://nodejs.org/dist/latest-v12.x/docs/api/http.html#http_response_writehead_statuscode_statusmessage_headers
             // - .writeHead SHOULD allow for chaining (resp.writeHead(...).end(...)) but it DOES NOT!
             // todo: notify node folks
-
-            // when must redirect to itself (else page clicked on would show nothing after click)
-            const backToCaller = () => { res.writeHead(302, { Location: req.headers.referer }); res.end(); }
 
             if (/^[/]stop$/i.test(urlPath)) {
                 res.end('ok, stopped\n');
@@ -220,16 +218,21 @@ function startLocalServer() {
             else if (/^[/]started[?]?$/i.test(urlPath)) {
                 res.end('yes, started, all good\n');
             }
-            else if (editDocument) {
+            else if (isViewingDoc) {
+                mainHtmlPage(docPath, (body,type,code) => {
+                    res.writeHead(code, { 'Content-Type': type });
+                    res.end(body);
+                    log('HOME page for\n\t' + docPath);
+                });
+            }
+            else if (editDocument) { // only on macs and only for vscode, for now
                 res.end();
                 execFile(VISUAL_CODE_EDITOR, [docNameToEdit]);
-                //backToCaller();
             }
-            else if (openFolder) {
+            else if (openFolder) { // only on mac platforms for now
                 res.end();
                 // todo: 'open' works on Macs (what about linux? windows? probably not...)
                 execFile('open', [folderNameToOpen === '/doclink-folder' ? __dirname : folderNameToOpen]); 
-                //backToCaller();
             }
             else if (gettingDoc) {
                 fmtDoc(docName).then(content => res.json(content));
@@ -237,23 +240,21 @@ function startLocalServer() {
             else if (savingDoc) {
                 saveDocument(docNameToSave, req) // never fails
                     .then(updatedResults => {
-                        log('y', updatedResults);
+                        log('SAVED DOC', updatedResults);
                         res.json(updatedResults);
                     })
             }
             else {
                 tryStaticFiles(res, `${__dirname}/viewer${urlPath}`)
-                    .then(file => log('sent static file', file))
+                    .then(file => log('sent static file\n\t', file))
                     .catch(err => {
                         if (err.notFound) {                            
-                            mainHtmlPage(urlPath, (body,type,code) => {
-                                res.writeHead(code, { 'Content-Type': type });
-                                res.end(body);
-                                log('sent base page');
-                            });
+                            log('NOT FOUND\n\t', urlPath);
+                            res.writeHead(404, { 'Content-Type': 'text/plain'});
+                            res.end('file not found');
                         }
                         else {
-                            log('file found but error sending', err);
+                            log('ERROR\n\t', urlPath, err);
                             res.writeHead(500, { 'Content-Type': 'text/plain'});
                             res.end('server error: ' + err.message);
                         }
@@ -314,12 +315,13 @@ function useAsViewer(doc) {
     // - https://peter.sh/experiments/chromium-command-line-switches/
 
 
-    doc && startLocalServer().then(stickAround => execFile(CHROME_BROWSER, [`--app=${SERVER.URL}${encodeURI(doc)}`], err => {
-        // if error launching browser, exit with a distinct error code (19!) [killing server as well, if it was launched here]
-        // if no error, exit if only launched browser (running on its own, so we're done)
-        // if no error, do NOT exit if we also launched the server (keeps it available for subsequent requests from other docs)
-        err ? process.exit(19) : stickAround || process.exit(0);
-    }));
+    doc && startLocalServer().then(stickAround => 
+        execFile(CHROME_BROWSER, [`--app=${SERVER.URL}/doclink-viewer${encodeURI(doc)}`], err => {
+            // if error launching browser, exit with a distinct error code (19!) [killing server as well, if it was launched here]
+            // if no error, exit if only launched browser (running on its own, so we're done)
+            // if no error, do NOT exit if we also launched the server (keeps it available for subsequent requests from other docs)
+            err ? process.exit(19) : stickAround || process.exit(0);
+        }));
 }
 
 function saveDocument(filename, request) {
@@ -345,7 +347,7 @@ function saveDocument(filename, request) {
 const mainHtmlPage = (function(dev) {
     if (dev)
         return (DOCUMENT_FILE, cb) => {
-            const html = fs.readFileSync(`${__dirname}/viewer/app.html`, 'utf8'); // re-reads it EVERY TIME
+            const html = fs.readFileSync(`${__dirname}/viewer/app/index.html`, 'utf8'); // re-reads it EVERY TIME
 
             // full rendering every time
             const resp = htmlNoPrivateComments(mustache(html, {
@@ -360,7 +362,7 @@ const mainHtmlPage = (function(dev) {
             cb(resp, 'text/html; charset=utf-8', 200);
         };
     else {
-        const html = require('./viewer/app.html'); // NOT reloaded if changed (good for prod; do when dev complete)
+        const html = require('./viewer/app/index.html'); // NOT reloaded if changed (good for prod; do when dev complete)
 
         // do most of the rendering here...
         const resp = htmlNoPrivateComments(mustache(html, {

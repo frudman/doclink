@@ -1,4 +1,4 @@
-import { crEl, loadCSS, log } from '../app-utils.js';
+import { crEl, loadCSS, log } from '../../app/utils.js';
 
 // example of a very simple text editor
 
@@ -31,7 +31,7 @@ import { crEl, loadCSS, log } from '../app-utils.js';
 // search: based on headers, lines
 
 
-loadCSS.fromUrl('/editors/text-editor.css');
+loadCSS.fromUrl('/editors/text-editor/index.css');
 
 export default function createTextEditor(events, editingAreaEl) {
 

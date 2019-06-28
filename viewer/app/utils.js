@@ -778,3 +778,5 @@ export function tooltip(...args) {
     tooltips(elx, options); 
     return elx; // chaining
 }
+
+export * from './encrypt-decrypt.js';
