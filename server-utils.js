@@ -92,11 +92,26 @@ function tryStaticFiles(resp, ...files) { // last parm may be function to send f
 const mimetype = (file,charset) => require('mime/lite').getType(file) + (charset ? `; charset=${charset}` : ``);
 const utfType = file => /[.](css|m?js|html|svg)$/i.test(file) ? 'utf-8' : ''; // basically...
 
-// // for when converting markdown to html
-// const markdownIt = require(`markdown-it`),
-//       markdown = new markdownIt()
-//         .use(require(`markdown-it-anchor`))
-//         .use(require(`markdown-it-table-of-contents`)); // so we can add a [[TOC]]
+const textOrBinary = (function() {
+    // determine content of file (text or binary)
+    // - if on this list, can ALWAYS be edited at browser or with simple text editor
+    // - do NOT add to list any known text/[type] or [type]/...xml: te?xt html? css md  markdown conf ya?ml xml svg
+    // todo: keep this list where it can be edited, added to
+    const textFiles = `(m|e)?js  php  java  cs  python  ruby  go
+                       styl(us)?  less  s(a|c)ss
+                       gitignore  settings  config  json5?`;
+
+    const isTextPat = new RegExp('[.](' + textFiles.replace(/\s+/g, '|') + ')$', 'i');
+
+    return filename => {
+        const mime = mimetype(filename); // https://en.wikipedia.org/wiki/Media_type
+        const isText = /^text|\bxml\b|javascript|\bjson\b/i.test(mime) || isTextPat.test(filename); 
+        const encoding = isText ? 'utf8' : 'binary'; // so 1-treat unknowns as binary; 2-always default to utf8 for text
+        return {isText, isBinary: !isText, mimetype: mime, encoding};
+    }
+})();
+
+
 
 module.exports = {
     log, 
@@ -107,6 +122,6 @@ module.exports = {
     tryStaticFiles,
     mimetype,
     utfType,
-    //markdown,
+    textOrBinary,
 }
         

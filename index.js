@@ -42,9 +42,14 @@ const DOCLINK_VERSION = require('./package.json').version;
 const DEV_MODE = true; // keep true while changing viewer/app.html
 const YEAR = new Date().getFullYear();
 
+const appdir = filename => __dirname + filename;
+
+const wdot = x => (x || '')[0] === '.' ? x : ('.' + x);
+
+
 
 // helpers ---
-const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles } = require('./server-utils');
+const { log, mustache, sleep, htmlNoPrivateComments, httpGet, tryStaticFiles, textOrBinary } = require('./server-utils');
 
 const path = require('path'),
       fs = require('fs'),
@@ -84,9 +89,9 @@ const INFO_PLIST = mustache(`<?xml version="1.0" encoding="UTF-8"?>
     YEAR: new Date().getFullYear() + 1,
 });
 
-const srcLargestIcon = `${__dirname}/mac-app/src-appicon-1024x1024.png`;
-const commonAppIcons = `${__dirname}/mac-app/macos-appicon.icns`;
-const commonInfoPlist = `${__dirname}/mac-app/macos-info.plist`;
+const srcLargestIcon = appdir(`/mac-app/src-appicon-1024x1024.png`);
+const commonAppIcons = appdir(`/mac-app/macos-appicon.icns`);
+const commonInfoPlist = appdir(`/mac-app/macos-info.plist`);
 
 //#endregion
 
@@ -196,14 +201,15 @@ function startLocalServer() {
         }); 
 
     function startServer() {
-        http.createServer((req, res) => {
+        http.createServer((req, resp) => {
 
             const purl = url.parse(req.url, true),
                 urlPath = purl.pathname, // differentiate from cmd-line doc
                 [openFolder, folderNameToOpen] = urlPath.match(/^[/]open-folder([/].+)/) || [],
-                [editDocument, docNameToEdit] = urlPath.match(/^[/]edit-document([/].+)/) || [],
+                [vscEditDocument, docNameToEdit] = urlPath.match(/^[/]edit-document([/].+)/) || [],
                 [gettingDoc, docName] = urlPath.match(/^[/]get-document([/].+)/) || [],
                 [savingDoc, docNameToSave] = urlPath.match(/^[/]save-document([/].+)/) || [],
+                //[savingBinary, binDataToSave] = urlPath.match(/^[/]save-binary([/].+)/) || [],
                 [isViewingDoc, docPath] = urlPath.match(/^[/]doclink-viewer([/].+)/i) || []; // must match prefix in useAsViewer()
             
             // note: error in nodejs docs
@@ -212,51 +218,53 @@ function startLocalServer() {
             // todo: notify node folks
 
             if (/^[/]stop$/i.test(urlPath)) {
-                res.end('ok, stopped\n');
+                resp.end('ok, stopped\n');
                 process.exit(0);
             }
             else if (/^[/]started[?]?$/i.test(urlPath)) {
-                res.end('yes, started, all good\n');
+                resp.end('yes, started, all good\n');
             }
-            else if (isViewingDoc) {
+            else if (isViewingDoc) { 
+                // send basic framework for full ui (same for ALL docs)
+                // browser app will then make an explicit request for actual doc content (text or binary)
                 mainHtmlPage(docPath, (body,type,code) => {
-                    res.writeHead(code, { 'Content-Type': type });
-                    res.end(body);
+                    resp.writeHead(code, { 'Content-Type': type });
+                    resp.end(body);
                     log('HOME page for\n\t' + docPath);
                 });
             }
-            else if (editDocument) { // only on macs and only for vscode, for now
-                res.end();
+            else if (openFolder) { // only on mac platforms for now
+                resp.end();
+                // todo: 'open' works on Macs (what about linux? windows? probably not...)
+                execFile('open', [folderNameToOpen === '/doclink-folder' ? DOCLINK_FOLDER : folderNameToOpen]); 
+            }
+            else if (vscEditDocument) { // only on macs and only for vscode, for now
+                resp.end();
                 execFile(VISUAL_CODE_EDITOR, [docNameToEdit]);
             }
-            else if (openFolder) { // only on mac platforms for now
-                res.end();
-                // todo: 'open' works on Macs (what about linux? windows? probably not...)
-                execFile('open', [folderNameToOpen === '/doclink-folder' ? __dirname : folderNameToOpen]); 
-            }
             else if (gettingDoc) {
-                fmtDoc(docName).then(content => res.json(content));
+                sendDoc(docName, resp);
             }
             else if (savingDoc) {
                 saveDocument(docNameToSave, req) // never fails
                     .then(updatedResults => {
                         log('SAVED DOC', updatedResults);
-                        res.json(updatedResults);
+                        resp.json(updatedResults);
                     })
             }
             else {
-                tryStaticFiles(res, `${__dirname}/viewer${urlPath}`)
+                tryStaticFiles(resp, appdir(`/viewer${urlPath}`))
                     .then(file => log('sent static file\n\t', file))
                     .catch(err => {
                         if (err.notFound) {                            
                             log('NOT FOUND\n\t', urlPath);
-                            res.writeHead(404, { 'Content-Type': 'text/plain'});
-                            res.end('file not found');
+                            resp.writeHead(404, { 'Content-Type': 'text/plain'});
+                            resp.end('file not found');
                         }
                         else {
                             log('ERROR\n\t', urlPath, err);
-                            res.writeHead(500, { 'Content-Type': 'text/plain'});
-                            res.end('server error: ' + err.message);
+                            resp.writeHead(500, { 'Content-Type': 'text/plain'});
+                            resp.end('server error: ' + err.message);
                         }
                     })
             }
@@ -324,10 +332,41 @@ function useAsViewer(doc) {
         }));
 }
 
-function saveDocument(filename, request) {
+// unicode lock icon: 1f512; unlock: 1f513
+
+function saveDocument(filename, req) {
+
+    // for binary docs, post with 'content-type: binary [;] [[.]ext]'
+    // - if 'ext' present: (e.g. .locked)
+    //  - .ext is added to filename on write
+    //  - if file without .ext already existed, it is DELETED
+
+    return new Promise(resolve => {
+        const [isBinary, binExt] = (req.headers['content-type'] || '').match(/^\s*binary\s*(?:[;]\s*)?[.]?(\w+)?/i) || [];
+        const dst = filename + (isBinary && binExt ? wdot(binExt) : ``);
+        log('saving', isBinary ? `BINARY file` : `TEXT doc`, dst);
+        // according to: https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options
+        // - "The encoding can be any one of those accepted by Buffer"
+        // - https://nodejs.org/api/buffer.html#buffer_buffers_and_character_encodings
+        // - BUT none of these refer to NO encoding (i.e. bytes only)
+        // - does this mean encoding: null to NOT encode data?
+        // but DEFAULT is utf8, so MUST set to null???
+        const fd = fs.createWriteStream(dst, {
+             /// SHOULD THIS BE REMOVED as per https://stackoverflow.com/questions/33976205/nodejs-binary-fs-createreadstream-streamed-as-utf-8
+             // encoding: isBinary ? 'binary' : 'utf8',
+             // or set to null???
+        })
+        req.on('end', () => resolve({ok: 'written ' + dst}));
+        // if error, which one will be triggered???
+        fd.on('error', err => resolve({ error: 'not saved (file stream error): ' + err.message }))
+        req.on('error', err => resolve({ error: 'not saved (request error): ' + err.message }))
+        req.pipe(fd);
+    });
+
+
     return new Promise(resolve => {
         const bodyParts = [];
-        request
+        req
             .on('data', chunk => bodyParts.push(chunk))
             .on('end', () => {
                 const plainBody = Buffer.concat(bodyParts).toString();
@@ -338,7 +377,7 @@ function saveDocument(filename, request) {
                 log('written!!!', filename);
 
                 // lastly...
-                resolve(fmtDocMD(filename, plainBody)); // may already have been rejected if there was an error...
+                resolve(getDocMeta(filename, plainBody)); // may already have been rejected if there was an error...
             })
             .on('error', err => resolve({ error: 'not saved: ' + err.message }));
     });
@@ -347,7 +386,7 @@ function saveDocument(filename, request) {
 const mainHtmlPage = (function(dev) {
     if (dev)
         return (DOCUMENT_FILE, cb) => {
-            const html = fs.readFileSync(`${__dirname}/viewer/app/index.html`, 'utf8'); // re-reads it EVERY TIME
+            const html = fs.readFileSync(appdir(`/viewer/app/index.html`), 'utf8'); // re-reads it EVERY TIME
 
             // full rendering every time
             const resp = htmlNoPrivateComments(mustache(html, {
@@ -379,54 +418,88 @@ const mainHtmlPage = (function(dev) {
     }
 })(DEV_MODE);
 
-function getContentEditorType(doc) {
-    
-    // TODO: get type/editor from live list (to be added by users)
+const knownEditors = new Map([
+
+    // TODO: get type/editor from a live list (to be added by users)
     //       - editors would be URLs (from npm?)
 
-    const knownAsText = ``;
-    const knownAsBinary = ``;
+    // let each editor determine which extensions it understands?
 
-    // determine content of file (text or binary)
-    const isText = /[.](te?xt|html?|js|css|php|md|markdown|java|gitignore|settings|conf|xml|yaml|json5?)$/i.test(doc); // if on this list, can ALWAYS be edited at browser
-    //  ? 'text' // todo: use mimetype for this?
-    //     : /[.](bin|jpe?g|png|gif|ico)$/i.test(doc) ? 'binary'
-    //     : 'unknown'; // should be treated as binary
+    // for BINARY: not editable!!! (images? videos? audio? other: can only update by uploading over it)
+    // maybe create a binary editor (i.e. just an upload and display area: display img/video/audio)
 
-    // determine which editor to use
-    // - todo: use other meta data for file (no just its extension)
-    const preferedEditor = /[.](te?xt)$/i.test(doc) ? 'text-editor'
-        : /[.](md|markkdown)$/i.test(doc) ? 'markdown-editor' 
-        : /[.](html?)$/i.test(doc) ? 'rich-editor' 
-        : /[.](css)$/i.test(doc) ? 'css-editor' // eventually; also, eventually, maybe .stylus, .less, .sass, .scss, ...
-        : /[.](js)$/i.test(doc) ? ['js-code-editor', 'code-editor'] // eventually (later: .cs .python .php .ruby .go .java ...)
-        : /[.](php)$/i.test(doc) ? ['php-code-editor', 'code-editor']
-        : /[.](cs)$/i.test(doc) ? ['csharp-code-editor', 'code-editor']
-        : 'text-editor';
 
-    return {isText,preferedEditor};
+    [ /[.](te?xt)$/i, 'text-editor' ],
+    [ /[.](md|markdown)$/i, 'markdown-editor' ],
+    [ /[.](html?)$/i, 'rich-editor', ],
+    [ /[.](css)$/i, 'css-editor' ], // eventually; also, eventually, maybe .stylus, .less, .sass, .scss, .. 
+    [ /[.](js)$/i, ['js-code-editor', 'code-editor'] ], // eventually (later: .cs .python .php .ruby .go .java ...
+    [ /[.](php)$/i, ['php-code-editor', 'code-editor'] ],
+    [ /[.](cs)$/i, ['csharp-code-editor', 'code-editor'] ],
+]);
+
+function getPreferredEditor(filename, filemeta, {defaultEditor = 'text-editor', editors = knownEditors} = {}) {
+
+    if (filemeta) {
+        // todo: use file meta (e.g. from s3 tags) to determine editor 
+        // - as explicitly set by user (and kept with document as tag)
+        // - based on s3 mimetype (more accurate than by extension?)
+
+        log.warning('file meta ignored for getting prefered editor - not implemented', filename, filemeta);
+    }
+    
+    for (const [pattern,editor] of editors)
+        if (pattern.test(filename)) 
+            return editor;
+
+    return defaultEditor;
 }
 
-function fmtDocMD(doc, raw) {
-    // doc used as a self ref
+function getDocMeta(filename) {
+    
+    const doc = filename.replace(/[.]locked$/i, ''); // trim it
 
+    const {isText, mimetype: mime, encoding} = textOrBinary(doc);
+    const preferedEditor = getPreferredEditor(filename);
 
-    //return { doc, ...getTypeAndEditor(doc), plain, html:`<h2 toc>table of content</h2>` + markdown.render('[[TOC]]\n\n' + plain), };
-    const x = { doc, ...getContentEditorType(doc), raw };//, html: markdown.render(raw), };
-    log('X', x);
-
-    return x;
-
-    // could leave html blank to let local editor do initial formatting
+    // doc === filename UNLESS doc is locked
+    return {doc, filename, isText, preferedEditor, mimetype: mime, encoding};
 }
 
-function fmtDoc(doc) {
-    return new Promise(resolve => { // never fails
-        fs.readFile(doc, 'utf8', (err, plain) => {
-            resolve(err ? {doc, error: { message: err.message || 'unknown error', title: `can't read this file` }}
-                        : fmtDocMD(doc, plain));
-        });    
-    })
+function sendDoc(doc, resp) {
+    const {isText, preferedEditor} = getDocMeta(doc);
+
+    const xdoc = locked => (locked ? 'locked;' : 'open;') + (isText ? 'text;' : 'binary;') + preferedEditor;
+
+    // do NOT use .writeHead: writes to network without caching; 
+    // BAD for us since we may change these values if file is locked (content-type then binary)
+    // as per: https://nodejs.org/api/http.html#http_response_setheader_name_value
+    // and: https://nodejs.org/api/http.html#http_response_writehead_statuscode_statusmessage_headers
+    resp.statusCode = 200; // https://nodejs.org/api/http.html#http_response_statuscode
+    resp.setHeader('X-Document', xdoc(false));
+
+    // for createReadStream: default encoding is null (good for binary); do NOT use 'binary' as it means 'Latin1'
+    // as per: https://nodejs.org/api/fs.html#fs_fs_createreadstream_path_options
+    // https://stackoverflow.com/questions/33976205/nodejs-binary-fs-createreadstream-streamed-as-utf-8
+    // skip encoding so default is null (no interpretation)
+    fs.createReadStream(doc) 
+        .on('error', err => {
+            if (err.code === 'ENOENT') { // let's try as locked
+                resp.setHeader('X-Document', xdoc(true));
+                fs.createReadStream(doc + '.locked')
+                    .on('error', err => {
+                        if (err.code === 'ENOENT')
+                            resp.json(404, {error: `file not found`});
+                        else
+                            resp.json(500, {error: `cannot read file (${err.code}): ${err.message}`});
+                    })
+                    .pipe(resp);
+            }
+            else {
+                resp.json(500, {error: `file error (${err.code}): ${err.message}`});
+            }    
+        })
+        .pipe(resp);
 }
 
 // --- From command line ---

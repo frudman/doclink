@@ -231,3 +231,57 @@ div[sniffx]:hover {
             - source(?): https://github.com/benweet/stackedit.js/tree/master/docs
             - doc: https://benweet.github.io/stackedit.js/
 */
+
+div[full-page-dialog] {
+    /* used in many places for many dialogs as a backdrop-and-dialog-centering framework */
+    position: absolute;
+    background: #ccc; /* backdrop */
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    display: flex;
+    flex-direction: row;
+    align-items: center; /* centers dialog vertically */
+    justify-content: center; /* center dialog horizontally */
+}
+
+div[full-page-dialog][hidden] { display: none; }
+
+div[document-security-dialog] h1 {
+    margin: 0;
+    text-align: center;
+    font: 600 28px system-ui;
+}
+
+div[document-security-dialog] div {
+    display: flex;
+    flex-direction: row;
+}
+
+div[document-security-dialog] h2 {
+    margin: 0;
+    text-align: center;
+    font: 400 20px system-ui;
+}
+
+div[document-security-dialog] {
+    display: flex;
+    flex-direction: column;
+    min-width: 350px;
+}
+
+div[document-security-dialog] button {
+    background: blue;
+    padding: 5px;
+    font-size: 1.1em;
+    border-radius: 10px;
+}
+
+div[document-security-dialog] input {
+    outline: none;
+    padding: 3px;
+    font-size: 1.1em;
+    margin-bottom: 7px;
+}

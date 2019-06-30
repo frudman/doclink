@@ -390,7 +390,7 @@ function makeItTiny(api) {
                         //const iconUrl = `/editors/icon-edit.svg`;//`/editors/icon-bland-person.svg`; // '/editors/icon-filter-search.2.svg'
                         const iconUrl = `/editors/rich-editor/icon-filter.svg`;
                         fetch(iconUrl)
-                            .then(resp => resp.status === 200 && resp.text())
+                            .then(resp => resp.ok && resp.text())
                             .then(svgIcon => crTinymceTBIcon(btnx(), svgIcon))
                             .catch(err => log.warning('failed to get server icon', err));
                     }
@@ -418,7 +418,10 @@ function makeItTiny(api) {
                 log('now edited???')
                 // lastly, update the api to now use tinymce
                 Object.assign(api, { // update the api
-                    setDoc(doc) { log('steTiny', doc); editor.setContent(api.originalContent = doc.raw); },
+
+                    // raw only passed down first time around; after that, whatever is in browser is good
+
+                    setDoc(doc) { log('steTiny', doc); ('raw' in doc) && editor.setContent(api.originalContent = doc.raw); },
                     getContent() { return editor.getContent(); },
                     getPretty() { 
                         asHtml.innerHTML = editor.getContent();
