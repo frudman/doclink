@@ -105,133 +105,63 @@ function fullPageDialog(html) {
     document.body.append(dialog);
 
     return Object.defineProperties(dialog, {
-        show: { value: () => attr('hidden', dialog, false) },
+        show: { value: focusFld => { attr('hidden', dialog, false); focusFld && setTimeout(() => focusFld.focus(), 0) } },
         hide: { value: () => attr('hidden', dialog, true) }
     });
 }
 
 // util
 function onEnterKey(...args) {
-    // not implemented
-    // should be ...args
-    const action = args.pop();
-    // first 2 args are selector and/or el
+
+    // on enterKey: go to next until last then do action
+
+    const action = args.pop(); // last arg always action
+
+    // todo: check keyCode/which with Edge & IE, firefox;
+    // todo: allow for string selectors (with parent el/not)
+    // todo: allow for checks/validations (e.g. don't move if field empty)
+    //        - maybe based on attributes (e.g. minlen = 2;)
+
+    while (args.length) {
+        const el = args.shift(),
+              elNext = args.length ? args[0] : false;
+        on('keyup', el, e => (e.code === 'Enter') && (elNext ? elNext.focus() : action()));
+    }
 }
 
-const removePasswordDialog = (function() {
-
-    // do once
-    const dialogHtml = `
-        <div document-security-dialog>
-            <input type=password placeholder='password or passphrase to remove'>
-            <div><button remove>remove</button><button cancel>cancel</button></div>
-        </div>
-    `;
-
-    const dlg = fullPageDialog(dialogHtml),
-          inp = qs('input', dlg);
-
-    var tryPwd = () => {}, forgetIt = () => {};
-
-    on('click@button[remove]', dlg, () => inp.value.length && tryPwd(inp.value));
-    on('click@button[cancel]', dlg, forgetIt);
-    onEnterKey('input', dlg, () => inp.value.length && tryPwd(inp.value));
-
-    // actual dialog method
-    return cb => new Promise(resolve => {
-        tryPwd = password => cb(password, passwordIsGood => {
-            if (passwordIsGood === true) { // ok, all is well
-                dlg.hide();
-                resolve(true); // we're done; send back updated (i.e. empty) password
-            }
-            else { // nope, pwd not good
-                inp.value = '';
-            }
-        });
-        forgetIt = () => {
-            dlg.hide();
-            resolve(false);
-        }
-
-        dlg.show();
-        setTimeout(() => inp.focus(), 0);
-    });
-})();
-
-
-// set alert to TOAST in UTILS
+// set alert(...) to TOAST in UTILS
 
 // create a createDialog util
-
 function createDialog(dialogHtml, init) {
-    // todo: add options (e.g. dropshadow, opacity, title)
+    // todo: add dialog options (e.g. dropshadow, opacity, title)
     const dlg = fullPageDialog(dialogHtml);
     return init(dlg);
 }
 
-const changePasswordDialog = createDialog(`
-        <div document-security-dialog>
-            <h1>change lock password</h1>
-            <input type=password placeholder='current passwordto change'>
-            <input first-try placeholder='new password'>
-            <input second-try placeholder='new password again'>
-            <div><button change>change</button><button cancel>cancel</button></div>
-        </div>
-    `, dlg => {
+function hint(text, inputField) {
+    tooltip(inputField, { // only done once but ok to call multiple times
+        placement:'right', 
+        trigger: 'manual', 
+        hideOnClick: false, // else would close as soon as button is clicked
+    }).showTooltip(text).focus();
+    setTimeout(inputField.hideTooltip, 2500); // auto close
+}
 
-    const pwd =  qs('input[type=password]', dlg),
-          inp1 = qs('input[first-try]', dlg),
-          inp2 = qs('input[second-try]', dlg);
-
-    var changePwd = () => {}, forgetIt = () => {};
-
-    const goodToGo = () => 
-        pwd.value.length // need current one to proceed
-        && inp1.value.length // new one can't be blank
-        && inp1.value === inp2.value  // make sure it's the same twice (safety, typos)
-        && changePwd(pwd.value); // ok, let's try this
-
-    on('click@button[change]', dlg, goodToGo);
-    on('click@button[cancel]', dlg, forgetIt);
-    onEnterKey('input', dlg, goodToGo);
-
-    // actual dialog method
-    return cb => new Promise(resolve => {
-        changePwd = password => cb(password, okToChange => {
-            if (okToChange === true) { // ok, all is well
-                dlg.hide();
-                resolve(inp1.value); // we're done, send back new one to use
-            }
-            else { // nope, pwd not good
-                pwd.value = inp1.value = inp2.value = '';
-            }
-        });
-
-        forgetIt = () => (dlg.hide(), resolve());
-
-        dlg.show();
-        setTimeout(() => pwd.focus(), 0);
-    });
-});
-
-const unlockDocDialog = (function() {
-
-    const unlockDialogHtml = `
+const unlockDocDialog = createDialog(`
         <div document-security-dialog>
             <h1>unlock to view</h1>
             <input type=password placeholder='password to unlock'>
             <button>unlock</button>
         </div>
-    `;
+    `, dlg => {
 
     // do once...
-    const dlg = fullPageDialog(unlockDialogHtml),
-          inp = qs('input', dlg);
+    const inp = qs('input', dlg);
 
     var tryPwd = () => {};
 
-    on('click@button', dlg, () => inp.value.length && tryPwd(inp.value));
-    onEnterKey('input', dlg, () => inp.value.length && tryPwd(inp.value));
+    on('mousedown@button', dlg, () => tryPwd(inp.value));
+    onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
     return cb => new Promise(resolve => {
@@ -242,48 +172,116 @@ const unlockDocDialog = (function() {
             }
             else { // nope, pwd not good
                 inp.value = '';
+                hint('invalid password', inp);
             }
         });
 
-        dlg.show();
-        setTimeout(() => inp.focus(), 0);
+        dlg.show(inp);
     });
-})();
+});
 
-const addDocLockDialog = (function() {
-
-    const addLockDialogHtml = `
+const addDocLockDialog = createDialog(`
         <div document-security-dialog>
             <h1>lock document with a password</h1>
             <input first-try placeholder='new password'>
             <input second-try placeholder='new password again'>
-            <div><button create>create lock</button><button cancel>cancel</button></div>
+            <div><button ok>create lock</button><button cancel>cancel</button></div>
         </div>
-    `;
+    `, dlg => {
 
     // do once...
-    const dlg = fullPageDialog(addLockDialogHtml),
-          inp1 = qs('input[first-try]', dlg),
+    const inp1 = qs('input[first-try]', dlg),
           inp2 = qs('input[second-try]', dlg);
 
     var setPassword = () => {}, forgetIt = () => {};
 
     // can't be blank, make sure it's the same twice (safety, typos), then try it
-    const goodToGo = () => inp1.value.length && inp1.value === inp2.value && setPassword(inp1.value);
+    const goodToGo = () => inp1.value.length === 0 ? hint('need password', inp1)
+                       : inp1.value === inp2.value ? setPassword(inp1.value)
+                       : hint('password check failed', inp2);
 
-    on('click@button[create]', dlg, goodToGo);
-    on('click@button[cancel]', dlg, forgetIt);
-    onEnterKey('input', dlg, goodToGo);
+    on('mousedown@button[ok]', dlg, goodToGo);
+    on('mousedown@button[cancel]', dlg, () => forgetIt());
+    onEnterKey(inp1, inp2, goodToGo);
 
     // actual dialog method
     return cb => new Promise(resolve => {
         setPassword = password => (dlg.hide(), resolve(password));
-        forgetIt = () => (dlg.hide(), resolve());
-
-        dlg.show();
-        setTimeout(() => inp1.focus(), 0);
+        forgetIt = () => [dlg.hide(), resolve()];
+        dlg.show(inp1);
     });
-})();
+});
+
+const removePasswordDialog = createDialog(`
+        <div document-security-dialog>
+            <h1>remove document lock</h1>
+            <input type=password placeholder='password or passphrase to remove'>
+            <div><button ok>remove</button><button cancel>cancel</button></div>
+        </div>
+    `, dlg => {
+
+    const inp = qs('input', dlg);
+
+    var tryPwd = () => {}, forgetIt = () => {};
+
+    on('mousedown@button[ok]', dlg, () => tryPwd(inp.value));
+    on('mousedown@button[cancel]', dlg, () => forgetIt());
+    onEnterKey(inp, () => tryPwd(inp.value));
+
+    // actual dialog method
+    return cb => new Promise(resolve => {
+        tryPwd = password => cb(password, passwordIsGood => {
+            if (passwordIsGood === true) { // ok, all is well
+                dlg.hide();
+                resolve(true); // we're done; send back updated (i.e. empty) password
+            }
+            else { // nope, pwd not good
+                inp.value = '';
+                hint('incorrect current password', inp)
+            }
+        });
+        forgetIt = () => {
+            dlg.hide();
+            resolve(false);
+        }
+
+        dlg.show(inp);
+    });
+});
+
+const changePasswordDialog = createDialog(`
+        <div document-security-dialog>
+            <h1>change locking password</h1>
+            <input type=password placeholder='current password to be changed'>
+            <input first-try placeholder='new password'>
+            <input second-try placeholder='new password again'>
+            <div><button ok>change</button><button cancel>cancel</button></div>
+        </div>
+    `, dlg => {
+
+    const pwd =  qs('input[type=password]', dlg),
+          inp1 = qs('input[first-try]', dlg),
+          inp2 = qs('input[second-try]', dlg);
+
+    var changePwd = () => {}, forgetIt = () => {};
+
+    const goodToGo = () => pwd.value.length === 0 ? hint('need current password', pwd) 
+        : inp1.value.length === 0 ? hint('need a new password', inp1)
+        : inp1.value === inp2.value ? changePwd(pwd.value) 
+        : hint('new passwords not same', inp2);
+
+    on('mousedown@button[ok]', dlg, goodToGo);
+    on('mousedown@button[cancel]', dlg, () => forgetIt());
+    onEnterKey(pwd, inp1, inp2, goodToGo);
+
+    // actual dialog method
+    return cb => new Promise(resolve => {
+        changePwd = oldp => cb(oldp, ok => (ok === true) ? (dlg.hide, resolve(inp1.value)) 
+            : (pwd.value = inp1.value = inp2.value = '', hint('invalid current password', pwd)));
+        forgetIt = () => (dlg.hide(), resolve());
+        dlg.show(pwd);
+    });
+});
 
 function showPage(title) {
     title && (document.title = title);
@@ -318,13 +316,14 @@ async function showDocument(docInfo) {
             // if good, pwd is good
 
             // test pwd here, then
-            passwordIsGood(true); // true === pwd is good and was changed
+            passwordIsGood(pwd[0] === 'a'); // true === pwd is good
         });
 
         pageTitle = doc + '🔓'; // doc now unlocked
         log('ok');
 
         var newPasswordToSet = await addDocLockDialog();
+        log('NEW', newPasswordToSet, ';');
         passwordToSave = (await changePasswordDialog((current, okToChange) => okToChange(current === passwordToSave))) || passwordToSave;
         if (await removePasswordDialog((current, okToRemove) => okToRemove(current === passwordToSave)));
             passwordToSave = '';

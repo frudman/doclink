@@ -742,16 +742,26 @@ export const sleep = delayInMS => new Promise(resolve => setTimeout(resolve, del
     - THIS ONE: https://atomiks.github.io/tippyjs/all-options/
         - for example usage, see app.js
 */
-const tooltips = asyncFeature(); // i.e. will be ready eventually
+const tooltips = asyncFeature(el => enhanceElWithTooltip(el)); // i.e. will be ready eventually
+const ttApi = Symbol('tooltip api');
+function enhanceElWithTooltip(el, tt) {
+    el.showTooltip = txt => (tt && (txt && tt.setContent(txt), tt.show()), el);
+    el.hideTooltip = () => (tt && tt.hide(), el);
+    return el;
+}
 loadSCRIPT.fromUrl('https://unpkg.com/popper.js', 'https://unpkg.com/tippy.js')
     .then(() => {
-        tooltips.ready((el, {html, label, text, arrow = true, placement = 'top'} = {}) => {
-            tippy(el, { arrow, placement, 
+        tooltips.ready((el, {html, label, text, arrow = true, placement = 'top', ...moreOptions} = {}) => {
+            if (el[ttApi]) 
+                return el; // already init
+            const options = {
+                arrow, placement, 
                 content: html || label || text || 'no tooltip specified!',
                 allowHTML: !!html,
-            });
+                ...moreOptions,
+            };
+            return enhanceElWithTooltip(el, el[ttApi] = tippy(el, options)); // init now
         });
-        log('TOOLTIP feature loaded & ready');
     })
     .catch(err => {
         log('error loading tooltip lib: ', err);
@@ -773,10 +783,10 @@ export function tooltip(...args) {
     const selector = (typeof args.first() === 'string') ? args.shift() : false; // using selector 
     const el = args.shift();
 
-    const elx = (selector && el) ? qs(selector, el) : (selector || el)
+    const elx = (selector && el) ? qs(selector, el) : (selector || el);
 
-    tooltips(elx, options); 
-    return elx; // chaining
+    return tooltips(elx, options); 
+    //return elx; // chaining
 }
 
 export * from './encrypt-decrypt.js';

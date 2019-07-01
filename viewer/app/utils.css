@@ -41,6 +41,10 @@
     padding: 0; /* another suspender */
 }
 
+/* TODO: NO CURRENT TOASTER!!! need to re-implement it!!! */
+
+/* TODO: move tooltips here? */
+
 div[toaster] {
     display: none; /* in general */
     position: absolute;

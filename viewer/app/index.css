@@ -112,9 +112,11 @@ main [savecancel] button {
 }
 
 button[save] { background: green; }
-button[save]:after { content: "✓save" }
+/* button[save]:after { content: "✓save" } */
+button[ok]:before { content: "✓" }
 button[cancel] { background: red; }
-button[cancel]:after { content: "✗cancel" }
+/* button[cancel]:after { content: "✗cancel" } */
+button[cancel]:before { content: "✗ " }
 
 
 /* nav would be better than div for the toolbox but the html5 hidden attribute 
@@ -260,11 +262,12 @@ div[document-security-dialog] div {
     flex-direction: row;
 }
 
-div[document-security-dialog] h2 {
-    margin: 0;
+/* div[document-security-dialog] h2 {
+    margin: 3px;
     text-align: center;
     font: 400 20px system-ui;
-}
+    color: red;
+} */
 
 div[document-security-dialog] {
     display: flex;
@@ -277,6 +280,8 @@ div[document-security-dialog] button {
     padding: 5px;
     font-size: 1.1em;
     border-radius: 10px;
+    flex: 1; /* spreads out */
+    margin-right: 3px;
 }
 
 div[document-security-dialog] input {
