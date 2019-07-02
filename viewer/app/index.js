@@ -24,7 +24,7 @@
 // once s3 turned on, can update individual images by drag/drop onto them (but still want save/cancel FIRST, right?)
 // - also, there are browser-based image editors
 
-import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, on, attr, scrollBackToTop, tooltip, toggleAttr} from './utils.js';
+import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, qsa, on, attr, scrollBackToTop, tooltip, toggleAttr} from './utils.js';
 
 import textEditor from '../editors/text-editor/index.js'; // a plain text editor (also used as default for unknown)
 import markdownEditor from '../editors/markdown-editor/index.js'; // [re-]formatting done on server
@@ -33,6 +33,8 @@ import richEditor from '../editors/rich-editor/index.js'; // uses tinymce
 // import imageEditor from './editors/image-editor.js'; // to display (i.e. view) or update (drag-drop-select)
 // import audioEditor from './editors/audio-editor.js'; // to display (i.e. view) or update (drag-drop-select)
 // import videoEditor from './editors/video-editor.js'; // to display (i.e. view) or update (drag-drop-select)
+
+const buttonClick = 'mousedown'; // HACK: actual click seems to NOT work until user moves mouse
 
 function testBinary() {
 
@@ -113,9 +115,8 @@ function fullPageDialog(html) {
 // util
 function onEnterKey(...args) {
 
-    // on enterKey: go to next until last then do action
-
-    const action = args.pop(); // last arg always action
+    // on enterKey: go to next field (if any)
+    // if last arg is function, execute it
 
     // todo: check keyCode/which with Edge & IE, firefox;
     // todo: allow for string selectors (with parent el/not)
@@ -123,9 +124,12 @@ function onEnterKey(...args) {
     //        - maybe based on attributes (e.g. minlen = 2;)
 
     while (args.length) {
-        const el = args.shift(),
-              elNext = args.length ? args[0] : false;
-        on('keyup', el, e => (e.code === 'Enter') && (elNext ? elNext.focus() : action()));
+        const el = args.shift(), // always an element
+              // next arg may be an action...
+              action = typeof args.first() === 'function' ? args.shift() : false, // so MUST consume it
+              // ...or another element to move to
+              elNext = !action && args.first();  // so DO NOT consume it (needed on next iteration)
+        (action || elNext) && on('keyup', el, e => (e.code === 'Enter') && (elNext ? elNext.focus() : action()));
     }
 }
 
@@ -133,9 +137,10 @@ function onEnterKey(...args) {
 
 // create a createDialog util
 function createDialog(dialogHtml, init) {
-    // todo: add dialog options (e.g. dropshadow, opacity, title)
+    // todo: add dialog options (e.g. dropshadow, opacity, attribute, class)
+    // or let all this be done via attributes, class --> css
     const dlg = fullPageDialog(dialogHtml);
-    return init(dlg);
+    return init(dlg, ...qsa('input,button', dlg));
 }
 
 function hint(text, inputField) {
@@ -151,28 +156,26 @@ const unlockDocDialog = createDialog(`
         <div document-security-dialog>
             <h1>unlock to view</h1>
             <input type=password placeholder='password to unlock'>
-            <button>unlock</button>
+            <div><button>unlock</button><button>forgot</button></div>
         </div>
-    `, dlg => {
-
-    // do once...
-    const inp = qs('input', dlg);
+    `, (dlg, inp, ok, forgot) => {
 
     var tryPwd = () => {};
 
-    on('mousedown@button', dlg, () => tryPwd(inp.value));
+    on(buttonClick, ok, () => tryPwd(inp.value));
+    on(buttonClick, forgot, () => tryPwd())
     onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
-    return cb => new Promise(resolve => {
-        tryPwd = password => cb(password, passwordIsGood => {
-            if (passwordIsGood === true) { // ok, all is well
+    return checkPwd => new Promise(resolve => {
+        tryPwd = pwd => checkPwd(pwd, (valid,hintTxt) => {
+            if (valid) { // ok, all is well
                 dlg.hide();
-                resolve(password); // we're done
+                resolve();//pwd); // we're done
             }
             else { // nope, pwd not good
                 inp.value = '';
-                hint('invalid password', inp);
+                hint(pwd ? 'invalid password' : hintTxt ? `hint: ${hintTxt}` : ``, inp);
             }
         });
 
@@ -183,30 +186,30 @@ const unlockDocDialog = createDialog(`
 const addDocLockDialog = createDialog(`
         <div document-security-dialog>
             <h1>lock document with a password</h1>
-            <input first-try placeholder='new password'>
-            <input second-try placeholder='new password again'>
+            <h2>password is <u>not saved anywhere</u><br>
+            once locked, document <u>can only be unlocked</u> with that password<br>
+            pick your password and hint <u>carefully</u></h2>
+            <input placeholder='new password'>
+            <input placeholder='new password again'>
+            <input placeholder='hint in case you forget password'>
             <div><button ok>create lock</button><button cancel>cancel</button></div>
         </div>
-    `, dlg => {
-
-    // do once...
-    const inp1 = qs('input[first-try]', dlg),
-          inp2 = qs('input[second-try]', dlg);
+    `, (dlg, inp1, inp2, hintInp, ok, cancel) => {
 
     var setPassword = () => {}, forgetIt = () => {};
 
     // can't be blank, make sure it's the same twice (safety, typos), then try it
     const goodToGo = () => inp1.value.length === 0 ? hint('need password', inp1)
-                       : inp1.value === inp2.value ? setPassword(inp1.value)
+                       : inp1.value === inp2.value ? setPassword(inp1.value, hintInp.value)
                        : hint('password check failed', inp2);
 
-    on('mousedown@button[ok]', dlg, goodToGo);
-    on('mousedown@button[cancel]', dlg, () => forgetIt());
-    onEnterKey(inp1, inp2, goodToGo);
+    on(buttonClick, ok, goodToGo);
+    on(buttonClick, cancel, () => forgetIt());
+    onEnterKey(inp1, inp2, hintInp, goodToGo);
 
     // actual dialog method
     return cb => new Promise(resolve => {
-        setPassword = password => (dlg.hide(), resolve(password));
+        setPassword = (password,hint) => (dlg.hide(), resolve({password,hint}));
         forgetIt = () => [dlg.hide(), resolve()];
         dlg.show(inp1);
     });
@@ -218,26 +221,24 @@ const removePasswordDialog = createDialog(`
             <input type=password placeholder='password or passphrase to remove'>
             <div><button ok>remove</button><button cancel>cancel</button></div>
         </div>
-    `, dlg => {
-
-    const inp = qs('input', dlg);
+    `, (dlg,inp,ok,cancel) => {
 
     var tryPwd = () => {}, forgetIt = () => {};
 
-    on('mousedown@button[ok]', dlg, () => tryPwd(inp.value));
-    on('mousedown@button[cancel]', dlg, () => forgetIt());
+    on(buttonClick, ok, () => tryPwd(inp.value));
+    on(buttonClick, cancel, () => forgetIt());
     onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
-    return cb => new Promise(resolve => {
-        tryPwd = password => cb(password, passwordIsGood => {
-            if (passwordIsGood === true) { // ok, all is well
+    return checkPwd => new Promise(resolve => {
+        tryPwd = pwd => checkPwd(pwd, (valid,hintTxt) => {
+            if (valid) { // ok, all is well
                 dlg.hide();
                 resolve(true); // we're done; send back updated (i.e. empty) password
             }
             else { // nope, pwd not good
                 inp.value = '';
-                hint('incorrect current password', inp)
+                hint(`invalid password` + (hintTxt ? ` (hint: ${hintTxt})`:``), inp);
             }
         });
         forgetIt = () => {
@@ -253,15 +254,12 @@ const changePasswordDialog = createDialog(`
         <div document-security-dialog>
             <h1>change locking password</h1>
             <input type=password placeholder='current password to be changed'>
-            <input first-try placeholder='new password'>
-            <input second-try placeholder='new password again'>
+            <input placeholder='new password'>
+            <input placeholder='new password again'>
+            <input placeholder='hint in case your forget'>
             <div><button ok>change</button><button cancel>cancel</button></div>
         </div>
-    `, dlg => {
-
-    const pwd =  qs('input[type=password]', dlg),
-          inp1 = qs('input[first-try]', dlg),
-          inp2 = qs('input[second-try]', dlg);
+    `, (dlg, pwd, inp1, inp2, hintInp, ok, cancel) => {
 
     var changePwd = () => {}, forgetIt = () => {};
 
@@ -270,14 +268,22 @@ const changePasswordDialog = createDialog(`
         : inp1.value === inp2.value ? changePwd(pwd.value) 
         : hint('new passwords not same', inp2);
 
-    on('mousedown@button[ok]', dlg, goodToGo);
-    on('mousedown@button[cancel]', dlg, () => forgetIt());
-    onEnterKey(pwd, inp1, inp2, goodToGo);
+    on(buttonClick, ok, goodToGo);
+    on(buttonClick, cancel, () => forgetIt());
+    onEnterKey(pwd, inp1, inp2, hintInp, goodToGo);
 
     // actual dialog method
-    return cb => new Promise(resolve => {
-        changePwd = oldp => cb(oldp, ok => (ok === true) ? (dlg.hide, resolve(inp1.value)) 
-            : (pwd.value = inp1.value = inp2.value = '', hint('invalid current password', pwd)));
+    return checkPwd => new Promise(resolve => {
+        changePwd = oldp => checkPwd(oldp, (ok,hintTxt) => {
+            if (ok) {
+                dlg.hide();
+                resolve({password: inp1.value, hint: hintInp.value});
+            }
+            else {
+                pwd.value = inp1.value = inp2.value = hintInp.value = '';
+                hint(`invalid current password` + (hintTxt ? ` (hint: ${hintTxt})`:``), pwd);
+            }
+        });
         forgetIt = () => (dlg.hide(), resolve());
         dlg.show(pwd);
     });
@@ -294,11 +300,11 @@ async function showDocument(docInfo) {
     // then what? let editor get it separately (e.g. <audio src...> or <img ...> or <video ...> or nothing at all for all others)
     // also, how to then get it: url should probably reflect '/binary-asset/...'
 
+    // todo: after timeout, lock doc locally & forget password
+
     const {doc, bytes, text, editor: preferedEditor, error, isText, isLocked} = docInfo;
 
     var pageTitle;
-
-    var passwordToSave = false;
 
     log('showing doc', docInfo);//, docInfo.bytes.byteLength);
 
@@ -308,25 +314,37 @@ async function showDocument(docInfo) {
     }
 
     if (isLocked) {
+        let lock = {
+            hint: 'type of coffee' // island; Island; 55qt; 55; 552;
+        };
+
         showPage(doc + ' 🔒');
-        passwordToSave = await unlockDocDialog((pwd, passwordIsGood) => {
+        await unlockDocDialog((pwd, passwordIsGood) => {
 
             log('single password to unlock', pwd);
+
             // try decoding bytes
             // if good, pwd is good
+            lock.password = pwd;
 
             // test pwd here, then
-            passwordIsGood(pwd[0] === 'a'); // true === pwd is good
+            passwordIsGood((pwd || '')[0] === 'a', lock.hint); // true === pwd is good
         });
 
         pageTitle = doc + '🔓'; // doc now unlocked
-        log('ok');
+
+        log('unlocked with ', lock);
 
         var newPasswordToSet = await addDocLockDialog();
         log('NEW', newPasswordToSet, ';');
-        passwordToSave = (await changePasswordDialog((current, okToChange) => okToChange(current === passwordToSave))) || passwordToSave;
-        if (await removePasswordDialog((current, okToRemove) => okToRemove(current === passwordToSave)));
-            passwordToSave = '';
+        lock = (await changePasswordDialog((current, okToChange) => {
+            log('testing change', current, lock, okToChange);
+            okToChange(current === lock.password, lock.hint);
+        })) || lock;
+        log('CHANGED PWD', lock);
+
+        if (await removePasswordDialog((current, okToRemove) => okToRemove(current === lock.password, lock.hint)));
+            lock = {};
     }
     else {
         pageTitle = doc + '😊';//); // 'hi fweddy!!! 😊😊 🔒 🔐 🔓  🛡️'; // use lock char if locked

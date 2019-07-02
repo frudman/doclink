@@ -729,7 +729,8 @@ export const sleep = delayInMS => new Promise(resolve => setTimeout(resolve, del
         - best to use it (+ framework) as npm + build but used below as straight <scripts>
     - i explored 2 such frameworks: tooltip.js & tippy.js
     - tooltip.js was rctu AND HDDU: i chose to abandon it!!!
-    - tippy.js just worked!
+    - tippy.js just worked! (BUT, need to include popper.js); 
+        - todo: about 15k; should look for something lighter
         - special considerations for IE11:
             - read: https://atomiks.github.io/tippyjs/creating-tooltips/#svg-in-i-e-11
             - NOT IMPLEMENTED below; but easy enough to add an extra loadSCRIPT statement
@@ -764,8 +765,8 @@ loadSCRIPT.fromUrl('https://unpkg.com/popper.js', 'https://unpkg.com/tippy.js')
         });
     })
     .catch(err => {
-        log('error loading tooltip lib: ', err);
-        tooltips.ready((el,options) => log('tooltip feature failed to load - tooltip settings ignored', el, options));
+        log.error('error loading tooltip lib (tooltips will NOT be displayed): ', err);
+        //log('tooltip feature failed to load - tooltip settings ignored', options);
     });
 
 export function tooltip(...args) { 

@@ -262,12 +262,10 @@ div[document-security-dialog] div {
     flex-direction: row;
 }
 
-/* div[document-security-dialog] h2 {
-    margin: 3px;
+div[document-security-dialog] h2 {
+    font-size: 1em;
     text-align: center;
-    font: 400 20px system-ui;
-    color: red;
-} */
+}
 
 div[document-security-dialog] {
     display: flex;

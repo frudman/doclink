@@ -13,6 +13,8 @@
 
 // todo: implement encryptToBytes() & decryptFromBytes() (when sending to server, no need to convert to strings (more work & more data))
 
+// TODO: add extra field (unencrypted) to bytes: e.g. a user hint
+
 const ALGO = { 
     // AES is a symmetrical block-cipher algorithm with a 128-bit block size: 
     // - its initialization vector is ALWAYS 16 bytes (128 bits) for AES 128, 192 and 256
