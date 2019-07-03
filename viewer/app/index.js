@@ -135,14 +135,6 @@ function onEnterKey(...args) {
 
 // set alert(...) to TOAST in UTILS
 
-// create a createDialog util
-function createDialog(dialogHtml, init) {
-    // todo: add dialog options (e.g. dropshadow, opacity, attribute, class)
-    // or let all this be done via attributes, class --> css
-    const dlg = fullPageDialog(dialogHtml);
-    return init(dlg, ...qsa('input,button', dlg));
-}
-
 function hint(text, inputField) {
     tooltip(inputField, { // only done once but ok to call multiple times
         placement:'right', 
@@ -167,20 +159,17 @@ const unlockDocDialog = createDialog(`
     onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
-    return checkPwd => new Promise(resolve => {
-        tryPwd = pwd => checkPwd(pwd, (valid,hintTxt) => {
-            if (valid) { // ok, all is well
-                dlg.hide();
-                resolve();//pwd); // we're done
-            }
-            else { // nope, pwd not good
-                inp.value = '';
-                hint(pwd ? 'invalid password' : hintTxt ? `hint: ${hintTxt}` : ``, inp);
-            }
-        });
+    return (done, checkPwd) => {
+        tryPwd = async pwd => {
+            const valid = await checkPwd(pwd);
+            if (valid === true) 
+                return done();
 
-        dlg.show(inp);
-    });
+            // nope, pwd not good
+            inp.value = '';
+            hint((pwd ? (pwd.length ? 'invalid password' : 'need password') : '') + (valid ? ` (hint: ${valid})` : ``), inp);
+        };
+    };
 });
 
 const addDocLockDialog = createDialog(`
@@ -208,14 +197,13 @@ const addDocLockDialog = createDialog(`
     onEnterKey(inp1, inp2, hintInp, goodToGo);
 
     // actual dialog method
-    return cb => new Promise(resolve => {
-        setPassword = (password,hint) => (dlg.hide(), resolve({password,hint}));
-        forgetIt = () => [dlg.hide(), resolve()];
-        dlg.show(inp1);
-    });
+    return done => {
+        setPassword = (password,hint) => done({password,hint});
+        forgetIt = () => done();
+    };
 });
 
-const removePasswordDialog = createDialog(`
+const removePasswordDialog2 = createDialog(`
         <div document-security-dialog>
             <h1>remove document lock</h1>
             <input type=password placeholder='password or passphrase to remove'>
@@ -250,6 +238,51 @@ const removePasswordDialog = createDialog(`
     });
 });
 
+// create a createDialog util
+function createDialog(dialogHtml, firstTimeInit) {
+    // todo: add dialog options (e.g. dropshadow, opacity, attribute, class)
+    // or let all this be done via attributes, class --> css
+    const dlg = fullPageDialog(dialogHtml);
+    const initDlg = firstTimeInit(dlg, ...qsa('input,button', dlg));
+
+    return (...args) => new Promise(resolve => {
+        const done = (...args) => {
+            dlg.hide();
+            resolve(...args);
+        }
+         // always focus on first input field (if any; unless changed by init)
+        dlg.show(initDlg(done, ...args) || qs('input', dlg));
+    });
+}
+
+const removePasswordDialog = createDialog(`
+        <div document-security-dialog>
+            <h1>remove document lock</h1>
+            <input type=password placeholder='password or passphrase to remove'>
+            <div><button ok>remove</button><button cancel>cancel</button></div>
+        </div>
+    `, (dlg,inp,ok,cancel) => {
+
+    var tryPwd = () => {}, forgetIt = () => {};
+
+    on(buttonClick, ok, () => tryPwd(inp.value));
+    on(buttonClick, cancel, () => forgetIt());
+    onEnterKey(inp, () => tryPwd(inp.value));
+
+    // actual dialog method
+    return (done, checkPwd) => {
+        tryPwd = async pwd => {
+            const valid = await checkPwd(pwd); // true or 'reason' 
+            if (valid === true)
+                return done(true);
+
+            inp.value = '';
+            hint(`invalid password` + (valid ? ` (hint: ${valid})`:``), inp);
+        };
+        forgetIt = () => done(false);
+    }
+});
+
 const changePasswordDialog = createDialog(`
         <div document-security-dialog>
             <h1>change locking password</h1>
@@ -273,20 +306,17 @@ const changePasswordDialog = createDialog(`
     onEnterKey(pwd, inp1, inp2, hintInp, goodToGo);
 
     // actual dialog method
-    return checkPwd => new Promise(resolve => {
-        changePwd = oldp => checkPwd(oldp, (ok,hintTxt) => {
-            if (ok) {
-                dlg.hide();
-                resolve({password: inp1.value, hint: hintInp.value});
-            }
-            else {
-                pwd.value = inp1.value = inp2.value = hintInp.value = '';
-                hint(`invalid current password` + (hintTxt ? ` (hint: ${hintTxt})`:``), pwd);
-            }
-        });
-        forgetIt = () => (dlg.hide(), resolve());
-        dlg.show(pwd);
-    });
+    return (done, checkPwd) => {
+        changePwd = async oldp => {
+            const ok = checkPwd(oldp);
+            if (ok === true)
+                return done({password: inp1.value, hint: hintInp.value});
+
+            pwd.value = inp1.value = inp2.value = hintInp.value = '';
+            hint(`invalid current password` + (ok ? ` (hint: ${ok})`:``), pwd);
+        };
+        forgetIt = done;
+    };
 });
 
 function showPage(title) {
@@ -319,16 +349,23 @@ async function showDocument(docInfo) {
         };
 
         showPage(doc + ' 🔒');
-        await unlockDocDialog((pwd, passwordIsGood) => {
+        await unlockDocDialog(async pwd => {//}, passwordIsGood) => {
 
             log('single password to unlock', pwd);
 
             // try decoding bytes
-            // if good, pwd is good
-            lock.password = pwd;
+            try {
+                //await decodeytes(pwd);
+                if ((pwd||'')[0] !== 'a') throw 'qq';
+                lock.password = pwd;
+                return true;
+            }
+            catch {
+                return lock.hint;
+            }
 
             // test pwd here, then
-            passwordIsGood((pwd || '')[0] === 'a', lock.hint); // true === pwd is good
+            //passwordIsGood((pwd || '')[0] === 'a', lock.hint); // true === pwd is good
         });
 
         pageTitle = doc + '🔓'; // doc now unlocked
@@ -337,13 +374,10 @@ async function showDocument(docInfo) {
 
         var newPasswordToSet = await addDocLockDialog();
         log('NEW', newPasswordToSet, ';');
-        lock = (await changePasswordDialog((current, okToChange) => {
-            log('testing change', current, lock, okToChange);
-            okToChange(current === lock.password, lock.hint);
-        })) || lock;
+        lock = (await changePasswordDialog(current => current === lock.password || lock.hint)) || lock;
         log('CHANGED PWD', lock);
 
-        if (await removePasswordDialog((current, okToRemove) => okToRemove(current === lock.password, lock.hint)));
+        if (await removePasswordDialog(current => current === lock.password ? true : lock.hint));
             lock = {};
     }
     else {
