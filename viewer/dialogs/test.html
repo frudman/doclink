@@ -1,0 +1,500 @@
+<!doctype component>
+
+<!-- on which platfrom can this run or not (below based on browser compatibility on developer.mozilla.org) -->
+<meta supports ie.11=no chrome.64+ chrome.android firefox.17+ firefox.android edge.15+ edge.mobile opera opera.android safari safari.ios >
+<meta supports chrome="64+ android" firefox.17+ firefox.android edge.15+ edge.mobile opera opera.android safari safari.ios >
+<meta supports android-webview samsung-internet >
+<meta supports node />
+<meta supports ie.11+ chrome.latest-3 >
+
+<meta requires plugin-api=simple jquery namx=@public/component >
+
+<meta requires subcomponents='comp1 comp2 ...' note='flagged as dependencies' >
+<meta requires subcomponents> <!-- to load ANY subcomponent: flagged as OPEN -->
+
+<div id=acts-as-template front-center>
+    why NOT???
+    <div sub-d>
+        hello sub-d
+    </div>
+</div>
+
+
+<!-- somewhere, on doctype-conponent.js load, need to "register" a {plugin-api: ...} -->
+
+<!-- 
+
+    MUST MUST READ: https://medium.com/content-uneditable/implementing-single-file-web-components-22adeaa0cd17
+    and: https://github.com/TheLarkInn/unity-component-specification
+    ALSO: https://dev.to/bennypowers/lets-build-web-components-part-1-the-standards-3e85
+    REF: google "single file web components"
+
+    name of this tech: doctype-component
+    also: doctype-component.com .io .dev
+        .com: main dite
+        .dev: signed-in, to publish
+        .io: cdn, to download
+            doctype-component.io/public/name-of-comp-here
+            doctype-component.io/@public/name-of-comp-here
+            doctype-component.io/@corporate/name-of-comp-here
+            doctype-component.io/corporate/name-of-comp-here
+
+            name-of-comp@corporate
+
+            what's the point of these? [want doctype-component.io for safety, so...]
+                corporate.doctype-component.io/name-of-comp-here
+                corporate-name-domain.com/name-of-comp-here
+                    - can run on your own servers
+                    - private
+
+    type of component:
+        web? ui? app? mobile? browser? server?
+        - for server, already have npm universe
+            - though not universal (e.g. php?)
+        - should we distinguish between browsers & tablets/phones?
+
+    although technically, the 'component' (of '<!DOCTYPE component>') should represent the ROOT of the page
+    - but in our case, there will be multiple elements
+
+    a web component simply combines all 3 parts into 1 file: html, css, javascript
+    - for easier distribution
+    - no build needed 
+    - for DIRECT CONSUMPTION by browsers
+    - when such a component CANNOT (should not) be build within an app, ahead of time:
+        - because don't know if/when app would need it
+        - to allow for 3rd party components to be added after the facts (e.g. by users) ON-DEMAND
+        - based on observations:
+            - many MANY component are really simple and SHOULD have simple re-usable code
+                - remove need for "build systems" for such smaller components
+            - uses considerable power of platforms today (i.e. user computers/phones) & browsers
+            - makes better use of 'distributed' computing (i.e. leverages a user's cpu power rather than??? servers?)
+            - like PHP libs (e.g. for wordpress) but for BROWSERS
+
+    - how is this different from single-file component Vue (or react?)
+        - or others?
+        - or different from RequireJS?
+        - or WebComponents: https://en.wikipedia.org/wiki/Web_Components
+            - see existing libraries: IMPORTANT: JQWidgets 
+                - https://en.wikipedia.org/wiki/JQWidgets#Smart_HTML_Elements
+                - https://x-tag.github.io/
+                - http://slimjs.com/#/getting-started
+                - https://en.wikipedia.org/wiki/Polymer_(library) (by Google)
+
+        - this is a PLUGIN-type framework
+            - each plugin may still need to adhere to a specific api, but still loaded after-the-facts
+                - and NOT part of app code, or initial download
+        
+        
+    BUT, even if so, why not allow these components to be BUILT?
+        - maybe we should BUT
+            - that then adds complexity to creating simple components
+                - because now need a build structure (not hard, but no longer trivial)
+                    - need to load gulp &/or webpack &/or rollup &/or babel
+
+    ALSO, a BUILT component is MUCH HARDER to INSPECT for security issues
+        - *** CAN "HIDE" MALICIOUS CODE ***
+        - can hide bugs
+
+    BUT, maybe an automatic PUBLIC build platform that guarantees a component:
+        - by version, with code ALWAYS public/available/visible
+            - with explicit signature based on the source code
+
+
+    - framework MUST MUST MUST BE VERY VERY lightweight (that's the whole point): less than 1k;
+        - framework CAN load heavier helpers (e.g. mustache, mustachex, vue, stylus/less/scss)
+    - MUST MUST MUST be EASIER to use than proposed(?) Web Components:
+        - https://developer.mozilla.org/en-US/docs/Web/Web_Components
+        - https://github.com/mdn/web-components-examples/blob/master/edit-word/main.js
+
+    - DOCTYPE optional (but recommended)
+        - loading a component (by url) assumes it's a component
+
+    - ALL tags with IDs are interpreted only on demand
+    - ALL tags without IDs are combined SEQUENTIALLY (in order found), then:
+        - javascript is executed with these parms:
+            (metaObj, htmlObj, styleObj, modulesObj, mainHtml, mainCss, mainDocument)
+
+    - WHNE (WHO DECIDES) to:
+        - style tags are loaded in doc
+        - html is interpreted/transformed as per javascript(?)
+        - resulting html dom el is???
+            - appended to document
+
+    - TOP LEVEL document can contain only these tags:
+        - <meta>
+        - <style>
+        - <html>
+        - <script>
+
+-->
+
+<!-- Parsing: 
+
+    - MUST work on IE11 (or else not very useful)
+        - also safari, others
+        - what features needed that need polyfills
+            - Promise? await/async?
+            - regexp
+            - arrayBuffer? crypto? (why crypto?)
+
+    - first, remove (blindly?) ALL <!-- html --\> comments
+    - then scan for all top-level tags:
+        - /[<](meta|style|script|html)(\s+ATTRS)?[>](?:not-</tag>)[<][/]\1[>]/
+    - ISSUES:
+        - tags embedded in:
+            - '...' or "..." in attributes
+            - `...` in javascript (which allows for nesting of these)
+
+    - OR, to simplify parsing AND edge cases, simply DISALLOWS these tags to be nested
+        - should then use "tricks" if need to use them
+            - e.g. in javascript: use var x='script', then use as `<${x}>` and `</${x}>`
+
+-->
+
+<!-- To Use: 
+
+    - direct in html page:
+        <script src=https://doctype-component.io></script>
+
+    - in a build:
+        - npm install -g doctype-component
+            - then?
+
+    - PUBLISH for easy/secure access
+        - anyone can get an account
+        - need to pay for more than 20 components
+            - $3/100 components
+            - but then if stop paying???    
+                - can't remove the component
+                - all public anyway, so then what
+                - maybe becomes redirect 302 to PUBLIC? 
+                    - so what?
+                        - still hits servers
+                        - don't want to penalize users
+                        - don't want to penalize contributors
+
+        - all components published as @public/...
+        - if pay, can publish as @user-id/...
+
+    - Once published, component can NEVER be pulled back
+        - can DEPRECATE
+        - can DEPRECATE with STRONG PREJUDICE (e.g. security flaw or majore bug problem)
+
+    - Users can/should pin their versions, then test when updating to another version
+
+
+-->
+
+<!-- must also allow components to be used directly in an app for simpler component-talization 
+    then how to use? how to include/import
+-->
+
+
+<meta name=`some-name` content='anything you wish: becomes module-global variable someName - assumes content is TEXT'>
+<meta name=some-name content.json='{json:"goes here"}'>
+<meta name=some-name content.audio='base64:...'>
+<meta name=another-title src='http://domain.com/url' note="this assumes it's a component">
+<meta name=another-title src.json='http://domain.com/url'>
+<meta name=another-title src.text='http://domain.com/url'>
+<meta name=another-title src.audio='http://domain.com/url'>
+<meta name=another-title src.video='http://domain.com/url'>
+<meta name=another-title src.binary='http://domain.com/url'>
+<meta name=another-title src.text='http://domain.com/url'>
+
+<!-- component content-type: 
+    application/x-component         regular component [default; if content-type is missing?]
+        or content-type: text/html
+    application/x-component+text    a text file
+        or content-type: text/plain
+    application/x-component+json    a json object
+        or content-type: application/json
+
+-->
+
+<!-- Once doctype-component.io loaded:
+    doctypeComponent api:
+        .load('component').then()
+
+-->
+
+<meta name=local-name-here component=https://domain.com/compenent-wanted.html>
+
+<style src='https://url-goes/here'>
+    /* stuff in here gets appended to source above */
+</style>
+
+<template id=basic1 type=mustachex>
+    <div attr-name-here @click.parm='something'>
+        hello!!! mustachex is extended mustache (i.e. with @eventing attributes)
+        {{template-var-here}}
+    </div>
+</template>
+
+<template id=some-id>
+    <div attr-name-here>
+        hello!!! acts as a template?
+    </div>
+</template>
+    
+    
+
+<style type=stylus src='https://url-goes/here'>
+    /* stuff in here gets appended to source above */
+</style>
+
+<style type=less src='https://url-goes/here'>
+    /* stuff in here gets appended to source above  */
+    /* also scss or sass */
+</style>
+
+<!-- comments are removed -->
+
+<template id=specific-stuff>
+        <div attr-name-here>
+                hello!!!
+        </div>        
+    <p>
+        more text with {{custom-date}} goes here
+        executed only during render
+    </p>
+</template>
+
+<html blah-blah>
+    hello BLAH!
+</html>
+
+
+
+
+<script>
+
+    // MUST have a customDate var or function
+
+    const abc = 123;
+    log('hello there!');
+
+    // 1st script with no ID tag is main
+    // - all other scripts with no IDs concat in order to main
+    // all other scripts with ID tags are modules to be loaded ON-DEMAND by ID
+
+    // ditto for CSS (loaded auto unless ID, then on demand)
+
+    // single body (is main)
+    // templates require IDs
+
+</script>
+
+<script id=my-module>
+    // this loaded when asked for
+
+</script>
+
+<style type=mustachx>
+    div[some-attr] {
+        background: blue;
+    }
+</style>
+
+<!------------------------------------------------------------------------------------------>
+
+<dialog>
+    <div document-security-dialog>
+        <h1>change locking password</h1>
+        <input type=password placeholder='current password to be changed'>
+        <input placeholder='new password'>
+        <input placeholder='new password again'>
+        <input placeholder='hint in case your forget'>
+        <div><button ok>change</button><button cancel>cancel</button></div>
+    </div>
+</dialog>
+
+<dialogxyz note='then content gets interpreted by a registerd dialogxyz transformer/processor'>
+    <div document-security-dialog>
+        <h1>change locking {{password}}</h1>
+        <input type=password placeholder='current {{password}} to be changed'>
+        <input placeholder='new {{password}}'>
+        <input placeholder='new {{password}} again'>
+        <input placeholder='hint in case your forget'>
+        <div><button ok @click=changePwd>change</button><button cancel @click=done>cancel</button></div>
+    </div>
+</dialogxyz>
+    
+<plain-dialog note='then content gets interpreted by a registerd dialogxyz transformer/processor'>
+    <div document-security-dialog>
+        <h1>change locking {{password}}</h1>
+        <input type=password placeholder='current {{password}} to be changed' :tooltip>
+        <input placeholder='new {{password}}'>
+        <input placeholder='new {{password}} again'>
+        <input placeholder='hint in case your forget'>
+        <div><button ok @click=changePwd>change</button><button cancel @click=done>cancel</button></div>
+    </div>
+</plain-dialog>
+    
+
+<style type=less scoped optx=load-once>
+    div[document-security-dialog] {
+        display: flex;
+        flex-direction: column;
+        min-width: 350px;
+
+        h1 {
+            margin: 0;
+            text-align: center;
+            font: 600 28px system-ui;
+        }
+
+        div {
+            display: flex;
+            flex-direction: row;
+        }
+
+        h2 {
+            font-size: 1em;
+            text-align: center;
+        }
+
+        button {
+            background: blue;
+            padding: 5px;
+            font-size: 1.1em;
+            border-radius: 10px;
+            flex: 1; /* spreads out */
+            margin-right: 3px;
+        }
+
+        input {
+            outline: none;
+            padding: 3px;
+            font-size: 1.1em;
+            margin-bottom: 7px;
+        }
+    }
+</style>
+
+<script xxuses="dlg, pwd, inp1, inp2, hintInp, ok, cancel">
+
+    const {html, style, meta, api: {templ}} = doctypeComponent;
+
+    // load into doc (adds to body.document)
+    const dlg = templ('dialogxyz'); // string is selector? dialogxyz#id or just id? (becomes tag if no id and only 1 tag equal to string)
+    const dlg = document.body.append(templ('dialogxyz'));
+    const dlg = document.body.append(templ('dialogxyz')); 
+    
+    const x = template.plainDialog.create({ options, // options: create=1-time? new instance every time?
+        password: 'password or passphrase',
+        changePwd(){},
+        done(){},
+    });
+
+    // what's returned from this module...
+    return checkPwd => { // called when dialog needed
+        x.show();
+    }
+
+    // somewhere else...
+    apix.registerTag('plain-dialog', { // now a custom tag
+        create(options) {
+
+        }
+    })
+
+
+
+        // called as a function?
+        // how to USE a component? what does the script/code mean?
+        // a component exports what? an api?
+        // how to use as a "plugin"? - needs to meet criteria, and has expectations (an api, events)
+    
+        // what happens when a component is instantiated multiple times
+        // we want to be like a class but with style and html as well
+        //  - why not just a class???
+    
+        // how to specify that an html.id is to be used as a template
+        // - does it need specified? just use it as such
+    
+        const {html, style, meta, load} = doctypeComponent; // api?
+        const {html, style, meta, api} = doctypeComponent; // api?
+    
+        html.idx; // domEl or string?
+        load.css(style.main); // how to pre-process? load uniquely? or in main doc?
+    
+        var changePwd = () => {}, forgetIt = () => {};
+    
+        const goodToGo = () => pwd.value.length === 0 ? hint('need current password', pwd) 
+            : inp1.value.length === 0 ? hint('need a new password', inp1)
+            : inp1.value === inp2.value ? changePwd(pwd.value) 
+            : hint('new passwords not same', inp2);
+    
+        on(buttonClick, ok, goodToGo);
+        on(buttonClick, cancel, () => forgetIt());
+        onEnterKey(pwd, inp1, inp2, hintInp, goodToGo);
+    
+        // actual dialog method (called when dialog must be displayed)
+        return (done, checkPwd) => {
+            changePwd = async oldp => {
+                const ok = checkPwd(oldp);
+                if (ok === true)
+                    return done({password: inp1.value, hint: hintInp.value});
+    
+                pwd.value = inp1.value = inp2.value = hintInp.value = '';
+                hint(`invalid current password` + (ok ? ` (hint: ${ok})`:``), pwd);
+            };
+            forgetIt = done;
+        };
+</script>
+    
+<script uses="dlg, pwd, inp1, inp2, hintInp, ok, cancel">
+
+    // called as a function?
+    // how to USE a component? what does the script/code mean?
+    // a component exports what? an api?
+    // how to use as a "plugin"? - needs to meet criteria, and has expectations (an api, events)
+
+    // what happens when a component is instantiated multiple times
+    // we want to be like a class but with style and html as well
+    //  - why not just a class???
+
+    // how to specify that an html.id is to be used as a template
+    // - does it need specified? just use it as such
+
+    const {html, style, meta, load} = doctypeComponent; // api?
+    const {html, style, meta, api} = doctypeComponent; // api?
+
+    html.idx; // domEl or string?
+    load.css(style.main); // how to pre-process? load uniquely? or in main doc?
+
+    var changePwd = () => {}, forgetIt = () => {};
+
+    const goodToGo = () => pwd.value.length === 0 ? hint('need current password', pwd) 
+        : inp1.value.length === 0 ? hint('need a new password', inp1)
+        : inp1.value === inp2.value ? changePwd(pwd.value) 
+        : hint('new passwords not same', inp2);
+
+    on(buttonClick, ok, goodToGo);
+    on(buttonClick, cancel, () => forgetIt());
+    onEnterKey(pwd, inp1, inp2, hintInp, goodToGo);
+
+    // actual dialog method (called when dialog must be displayed)
+    return (done, checkPwd) => {
+        changePwd = async oldp => {
+            const ok = checkPwd(oldp);
+            if (ok === true)
+                return done({password: inp1.value, hint: hintInp.value});
+
+            pwd.value = inp1.value = inp2.value = hintInp.value = '';
+            hint(`invalid current password` + (ok ? ` (hint: ${ok})`:``), pwd);
+        };
+        forgetIt = done;
+    };
+</script>
+
+<html foofoo lang=enx>
+        <div zztop>
+                <h1>change locking password</h1>
+                <input type=password placeholder='current password to be changed'>
+                <input placeholder='new password'>
+                <input placeholder='new password again'>
+                <input placeholder='hint in case your forget'>
+                <div><button ok>change</button><button cancel>cancel</button></div>
+            </div>
+</html>

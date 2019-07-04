@@ -184,6 +184,39 @@ div[sniffx] {
 body[visible-scrollbar] div[sniffx] { right: 15px; }
 div[sniffx][two] { top: 120px; }
 
+div[sniffx]::before { 
+    content: "\1f4dd"; 
+    font-size: 1.85em; 
+    xxtransform: rotate(90deg); 
+    margin-right: 10px;
+    xxdisplay: inline-block;
+}
+
+div[sniffx]:hover { 
+    max-width: 100%;
+    background: white;
+}
+
+div[right-side-toolbox] {
+    position: fixed;
+    right: 0;
+    top: 50px;
+    background: black;
+    padding: 10px 7px 10px 9px;
+    max-width: 40px;
+    white-space: nowrap;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    aaoverflow: hidden;
+
+    min-width: 30px;
+    min-height: 70px;
+}
+
+
+
 /* \00a0 is non-breaking space for content */
 /* edit pencil: 270e       270d 2699 270f  */
 /*
@@ -203,19 +236,6 @@ div[sniffx][two] { top: 120px; }
     2630: hamburger
 
 */
-
-div[sniffx]::before { 
-    content: "\1f4dd"; 
-    font-size: 1.85em; 
-    xxtransform: rotate(90deg); 
-    margin-right: 10px;
-    xxdisplay: inline-block;
-}
-
-div[sniffx]:hover { 
-    max-width: 100%;
-    background: white;
-}
 
 /* styled scrollbars:
     - not yet standard and NOT supported on firefox, so not ready for primetime

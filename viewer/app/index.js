@@ -1,5 +1,17 @@
 "use strict"; // implied with imports below...
 
+// "to keep X fast for everyone, inactive projects are..." what? require re-loading? defeats the whole purpose, just use aws lambda
+// - maybe placed on a separate server where we squeeze more apps (since fewer run at any one time)?
+
+// as per glitch.com: "sign in to keep your projects" (your assets)
+// MUST RESEARCH: GLITCH.com (very good UI elements AND LIVE CODE)
+
+// not @public/component
+// @community/component or @your-account/component
+// - pay annual; if stop paying, all @vendor/component revert to (302-redirect-to->) @community/component
+// if community already exists, component-2
+// if you have own account, your component names cannot be reused; but you can use any name you want
+
 // 1st goal: support all main platforms (mac, windows, linux)
 // - chrome & firefox: free and wide-usage
 // 2nd goal: try for native browsers
@@ -144,6 +156,24 @@ function hint(text, inputField) {
     setTimeout(inputField.hideTooltip, 2500); // auto close
 }
 
+// create a createDialog util
+function createDialog(dialogHtml, firstTimeInit) {
+    // todo: add dialog options (e.g. dropshadow, opacity, attribute, class)
+    // or let all this be done via attributes, class --> css
+    const dlg = fullPageDialog(dialogHtml);
+    const initDlg = firstTimeInit(dlg, ...qsa('input,button', dlg));
+
+    return (...args) => new Promise(resolve => {
+        const done = (...args) => {
+            dlg.hide();
+            resolve(...args);
+        }
+         // always focus on first input field (if any; unless changed by init)
+        dlg.show(initDlg(...args, done) || qs('input', dlg));
+    });
+}
+
+
 const unlockDocDialog = createDialog(`
         <div document-security-dialog>
             <h1>unlock to view</h1>
@@ -159,7 +189,7 @@ const unlockDocDialog = createDialog(`
     onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
-    return (done, checkPwd) => {
+    return (checkPwd, done) => {
         tryPwd = async pwd => {
             const valid = await checkPwd(pwd);
             if (valid === true) 
@@ -175,9 +205,8 @@ const unlockDocDialog = createDialog(`
 const addDocLockDialog = createDialog(`
         <div document-security-dialog>
             <h1>lock document with a password</h1>
-            <h2>password is <u>not saved anywhere</u><br>
-            once locked, document <u>can only be unlocked</u> with that password<br>
-            pick your password and hint <u>carefully</u></h2>
+            <h2>password is <u>not recoverable</u> (not saved anywhere)<br>
+            once locked, document <u>can only be unlocked with that password</u></h2>
             <input placeholder='new password'>
             <input placeholder='new password again'>
             <input placeholder='hint in case you forget password'>
@@ -203,58 +232,6 @@ const addDocLockDialog = createDialog(`
     };
 });
 
-const removePasswordDialog2 = createDialog(`
-        <div document-security-dialog>
-            <h1>remove document lock</h1>
-            <input type=password placeholder='password or passphrase to remove'>
-            <div><button ok>remove</button><button cancel>cancel</button></div>
-        </div>
-    `, (dlg,inp,ok,cancel) => {
-
-    var tryPwd = () => {}, forgetIt = () => {};
-
-    on(buttonClick, ok, () => tryPwd(inp.value));
-    on(buttonClick, cancel, () => forgetIt());
-    onEnterKey(inp, () => tryPwd(inp.value));
-
-    // actual dialog method
-    return checkPwd => new Promise(resolve => {
-        tryPwd = pwd => checkPwd(pwd, (valid,hintTxt) => {
-            if (valid) { // ok, all is well
-                dlg.hide();
-                resolve(true); // we're done; send back updated (i.e. empty) password
-            }
-            else { // nope, pwd not good
-                inp.value = '';
-                hint(`invalid password` + (hintTxt ? ` (hint: ${hintTxt})`:``), inp);
-            }
-        });
-        forgetIt = () => {
-            dlg.hide();
-            resolve(false);
-        }
-
-        dlg.show(inp);
-    });
-});
-
-// create a createDialog util
-function createDialog(dialogHtml, firstTimeInit) {
-    // todo: add dialog options (e.g. dropshadow, opacity, attribute, class)
-    // or let all this be done via attributes, class --> css
-    const dlg = fullPageDialog(dialogHtml);
-    const initDlg = firstTimeInit(dlg, ...qsa('input,button', dlg));
-
-    return (...args) => new Promise(resolve => {
-        const done = (...args) => {
-            dlg.hide();
-            resolve(...args);
-        }
-         // always focus on first input field (if any; unless changed by init)
-        dlg.show(initDlg(done, ...args) || qs('input', dlg));
-    });
-}
-
 const removePasswordDialog = createDialog(`
         <div document-security-dialog>
             <h1>remove document lock</h1>
@@ -270,7 +247,7 @@ const removePasswordDialog = createDialog(`
     onEnterKey(inp, () => tryPwd(inp.value));
 
     // actual dialog method
-    return (done, checkPwd) => {
+    return (checkPwd, done) => {
         tryPwd = async pwd => {
             const valid = await checkPwd(pwd); // true or 'reason' 
             if (valid === true)
@@ -305,8 +282,8 @@ const changePasswordDialog = createDialog(`
     on(buttonClick, cancel, () => forgetIt());
     onEnterKey(pwd, inp1, inp2, hintInp, goodToGo);
 
-    // actual dialog method
-    return (done, checkPwd) => {
+    // actual dialog method (called when dialog must be displayed)
+    return (checkPwd, done) => {
         changePwd = async oldp => {
             const ok = checkPwd(oldp);
             if (ok === true)
@@ -332,7 +309,7 @@ async function showDocument(docInfo) {
 
     // todo: after timeout, lock doc locally & forget password
 
-    const {doc, bytes, text, editor: preferedEditor, error, isText, isLocked} = docInfo;
+    const {doc, bytes, text, editor: preferedEditor, error, isText, } = docInfo; //isLocked
 
     var pageTitle;
 
@@ -343,6 +320,7 @@ async function showDocument(docInfo) {
         return;
     }
 
+    var isLocked = false;
     if (isLocked) {
         let lock = {
             hint: 'type of coffee' // island; Island; 55qt; 55; 552;
@@ -370,15 +348,15 @@ async function showDocument(docInfo) {
 
         pageTitle = doc + '🔓'; // doc now unlocked
 
-        log('unlocked with ', lock);
+        // log('unlocked with ', lock);
 
-        var newPasswordToSet = await addDocLockDialog();
-        log('NEW', newPasswordToSet, ';');
-        lock = (await changePasswordDialog(current => current === lock.password || lock.hint)) || lock;
-        log('CHANGED PWD', lock);
+        // var newPasswordToSet = await addDocLockDialog();
+        // log('NEW', newPasswordToSet, ';');
+        // lock = (await changePasswordDialog(current => current === lock.password || lock.hint)) || lock;
+        // log('CHANGED PWD', lock);
 
-        if (await removePasswordDialog(current => current === lock.password ? true : lock.hint));
-            lock = {};
+        // if (await removePasswordDialog(current => current === lock.password ? true : lock.hint));
+        //     lock = {};
     }
     else {
         pageTitle = doc + '😊';//); // 'hi fweddy!!! 😊😊 🔒 🔐 🔓  🛡️'; // use lock char if locked
@@ -446,6 +424,11 @@ async function showDocument(docInfo) {
 
         document.body.append(crEl('div', 'sniffx').text('edit'));
         document.body.append(crEl('div', 'sniffx two').text('settings'));
+
+        const rstb = crEl('div', 'right-side-toolbox');
+        document.body.append(rstb);
+
+
 
         const m = qs('main div[viewer]');
         function sizeup() {
@@ -583,6 +566,8 @@ async function showDocument(docInfo) {
 // main initialization
 onReady(() => {
 
+    test1(); return;
+
     if (window.opener) {
         return appFor2ndWindow();
     }
@@ -674,4 +659,208 @@ function appFor2ndWindow() {
             window.opener.postMessage({kql:123 + ctn++}, '*')
         }, 3000);
     }    
+}
+
+function makeObjLive(obj) {
+    // returns a Proxied version of object: SAME obj, with SOME props changed
+    //  - some props ignored (and remain available on that object)
+    //  - mostly, we convert props to get/set so that when .set, we can execute listeners
+    // reqs:
+    // - obj should be simple (?) [no class-based or extends based object?]
+    //      - only enumerable, changeable, ownHere props are transformed (ancestor not looked at)
+    //      - each prop is can be primitive, object, array only (functions ignored)
+    //      - each prop will be replaced by proxy get/set
+    //      - an existing get/set prop will be replaced but original get/set will be called
+    // - on obj.prop.set, 
+    //      - all prop listeners will be executed
+    // - obj[symbol-add-listener] = function ('prop', fcn);
+
+    // compromises from vue, react, others:
+    // - slower on dom ops (good for smaller changes, updates) [tbv]
+    // - some restrictions on model objects
+    // - fewer controls ($if/else-if/else, $for)
+    // advantage:
+    // - very (very?) small framework code base: lightweight
+    // - no build required
+    // - visually simple to understand (?)
+}
+
+function prepareLiveEl(el) {
+    const txt = el.nodeType === 3 && !el.textContent.match(/^\s+$/);
+    log('node', el.nodeType, el.nodeName, ';', txt ? `txt=[${el.textContent}]` : '', ';');//, el.toString());
+    return el;
+}
+
+
+function parseDoctypeComponentTag(el) {
+    if (el.nodeName === 'META') {
+        const meta = ((el.attributes[0] || {name:''}).name || '').toLowerCase();
+        if (meta === 'supports') {
+            for (const attr of el.attributes) {
+                log('attr', attr.name, '=', attr.value || 'yes', ';');
+            }
+        }
+        else if (meta === 'requires') {
+
+        }
+        log('META', el, el.attributes[0].name);
+
+    }
+    else if (el.nodeName === 'SCRIPT') {
+        log('scipture', el.innerText, ';;;', el.textContent); // .textContent is MORE correct according to specs: https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent
+    }
+    else {
+        log('QQ', el.nodeName);
+    }
+}
+
+function test1() {
+    fetch('/dialogs/change-password-dialog.html')
+        .then(resp => resp.text())
+        .then(html => {
+            log('gotx-0');//, html);
+            //const domparser = new DOMParser();​​​​​
+
+            // MUST MUST USE: https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
+            // - special case for text/html: MUST READ
+
+            // funny: https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags/1732454#1732454
+
+            const domparser = new DOMParser();
+            const doc = domparser.parseFromString(html, 'text/html'); // FIREFOX: see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
+
+            const templ = qs('main-part', doc);//'templ#test-1', doc);
+            log('gotx', templ);
+            for (const attr of templ.attributes) {
+                if (attr.name[0] === '$') {
+                    log('control attr', attr.name, attr.value, )
+                }
+                else
+                    log('normal attr', attr.name,'===', attr.value);
+            }
+            for (const el of qsa('script', doc)) {//doc.childNodes) {//children) { // skip comments & text nodes?
+                //prepareLiveEl(el);
+                // if (el.nodeName === 'SCRIPT' && !el.id) {
+                //     log('mabe?', el);
+                // }
+                if (!el.id) runScript(genScripter(el));// log('mabe?', el, !el.id);
+            }
+
+            // log('goty-2', doc.doctype, doc, doc.head, doc.body);
+            // for (const tld of doc.childNodes) {
+            //     //log('got', tld.nodeType, tld.nodeName); // 10=doctype; 8=comment; 1=html
+            //     if (tld.nodeType === 10) log('DOCTYPE is', tld.name);//nodeName);
+            // }
+            // for (const el of doc.head.childNodes)
+            //     x('head', el);
+            // for (const el of doc.body.childNodes) 
+            //     x('body', el);
+
+            // function x(title, el) {
+            //     if (el.nodeType === 8)
+            //         return;
+            //     else if (el.nodeType === 3) {
+            //         const t = el.innerText || '';
+            //         if (t.length && !/\s+/.test(t))
+            //             log(title, '#TEXT', t);
+            //     }
+            //     else
+            //         parseDoctypeComponentTag(el);//log(title, 'node', el.nodeType, el.nodeName);
+            // }
+        })
+
+}
+
+function genScripter(el) {
+    //log(el, el.textContent);
+    const text = el.textContent;
+    //return;
+    try {
+        // COULD make this an async function for slow loading components
+        const fcn = new Function('doctypeComponentApi', 'window', 'document', 'eval', text); // other backdoor globals to remove?
+        log('Worked', fcn);
+        return fcn;
+    }
+    catch(err) {
+        log('Whoops, err', err);
+        return () => {};
+    }
+}
+
+function runScript(scriptFcn) {
+    const docApi = {
+        html:{}, 
+        style:{}, 
+        meta:{}, 
+        api: { 
+            load: {
+                css(){},
+                html: loadHtmlX,//(){},
+            },
+            live(){}, // this live must be tied to load() above (for control model)
+        },
+
+        // 1 of these for ALL components of this type
+        staticData: {}, // static data for ALL instances of THIS component
+    };
+
+    // easy to circumvent but block for trivial (accidental) access
+    // also: Function (but can get around that); other evident ones?
+    const windowStub = Object.create(null);
+    const documentStub = Object.create(null);
+    const evalStub = () => {};
+
+    const INSTANCE_HERE = {}; // maybe this is the api?
+
+    //const resx = scriptFcn.call(INSTANCE_HERE, docApi, windowStub, documentStub);
+    const resx = scriptFcn.call(docApi, windowStub, documentStub, evalStub); // so docApi becomes the 'this';
+    log('got back as loaded script', resx);
+}
+
+function loadHtmlX(str, ctrl) {
+    log('loading html componenet', str, ctrl);
+    const px = proxyMe(ctrl);
+    log('proxied?', px);
+
+    // should it return something?
+}
+
+function proxyMe(obj) {
+    
+    // should we SEAL/FREEZE obj afterwards (then flag as error when changed)?
+    // seal: can't change structure (?)
+    // freeze: can't change struture or values
+
+    log('proxying', obj);
+
+    // could walk up the chain: https://stackoverflow.com/a/8024294/11256689
+    const obs = Object.getOwnPropertyDescriptors(obj);
+
+    for(const p in obs ) {
+        const opt = obs[p];
+        if (!opt.enumerable) continue;
+
+        // MUST be writable (if value) else can't change so no event to setup
+        // must be configurable, else???
+        // does any of this matter since we're to setup a separate proxy?
+        // .enumerable .configurable .writable .value .get .set
+
+        log('prop: '+ p + '=', opt);
+        if ('value' in opt) {
+
+        }
+        else if ('get' in opt || 'set' in opt) {
+            // getter setter: use as is? or replace?
+        }
+
+        // for each prop, replace it with an explicit proxy? (lots of little proxies?)
+        //  - but then folks can keep using the object itself;
+        //  - in fact, MUST be able to use object itself (else how to set things, props, values)?
+        // or single proxy for whole object? (more efficient?)
+
+    }
+
+    const px = new Proxy({}, { // could pass obj, else we're hiding it
+        // handlers
+    });
 }
