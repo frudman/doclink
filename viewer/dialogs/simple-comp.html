@@ -1,0 +1,34 @@
+<!doctype component>
+
+<meta fyi icon='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZ...'>
+<meta fyi screenshot='https://...' on-demand>
+
+<meta supports ie.11+ chrome.64+ chrome.android firefox.17+ firefox.android edge.15+ edge.mobile opera opera.android safari safari.ios>
+
+<meta title='A simple copyright-displaying component'>
+<meta author='Frederic Rudman'>
+<meta summary='A portable component file format'>
+<meta copyright='ⓒ 2019+ Frederic Rudman'>
+
+<div date-for-today>
+    <span>today's date is {{Date.now()}}</span>
+</div>
+
+<style sh='div[date-for-today'>
+    -sh- {
+        display: flex;
+        flex-direction: column;
+        min-width: 350px;
+    }
+
+    -sh h1 {
+        margin: 0;
+        text-align: center;
+        font: 600 28px system-ui;
+    }
+
+    -sh- div {
+        display: flex;
+        flex-direction: row;
+    }
+</style>

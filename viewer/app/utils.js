@@ -66,8 +66,30 @@ Object.defineProperty(Array.prototype, 'first', {
     }
 });
 
+// move to basic/setEnv (not utils)
+RegExp.escape || Object.defineProperty(RegExp, 'escape', { 
+    value(str) {
+        // from: https://github.com/frudman/freddy-javascript-utils/blob/master/utils.mjs
+        // todo: update code there so don't use .prototype. (no need; make it a static method)
+        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+});
 
-const camel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
+export const nullObj = () => Object.create(null); // read below...
+// Object.create(null) benefits/drawbacks: (lots of refs on inter-tubes)
+// - https://davidwalsh.name/object-create-null
+// - https://stackoverflow.com/a/32263086/11256689
+// - https://stackoverflow.com/a/26961636/11256689
+// - https://stackoverflow.com/questions/14294030/impacts-and-benefits-of-creating-empty-object-using-object-createnull
+
+
+
+
+export const toCamel = str => str.replace(/[a-z][-][a-z]/ig, m => m[0] + m[2].toUpperCase())
+                        .replace(/^[^a-z_$]|[^a-z0-9_$]/ig, '');
+
+
+export const fromCamel = x => x.replace(/[a-z][A-Z]/g, m => m[0] + '-' + m[1].toLowerCase());
 
 // document: https://developer.mozilla.org/en-US/docs/Web/API/Window/document
 // - Document (the type): https://developer.mozilla.org/en-US/docs/Web/API/Document
@@ -623,7 +645,7 @@ const cssProp = (function() {
     const leaveAlone = /^(display)$/; // else dis-play
     
     // 1) fontSize => font-size and 2) fontsize -> font-size
-    return p => leaveAlone.test(p) ? p : camel(p).replace(css2ndPat, m => m[0] + '-' + m.substring(1)); 
+    return p => leaveAlone.test(p) ? p : fromCamel(p).replace(css2ndPat, m => m[0] + '-' + m.substring(1)); 
 })();
 
 // exporting FCN when also FCN.subFcn(...): nice way to access BUT RIPE for being hijacked!

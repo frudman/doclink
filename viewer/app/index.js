@@ -38,6 +38,9 @@
 
 import {log, onReady, dontLeavePageIf, onCtrlSave, EventEmitter, post, crEl, qs, qsa, on, attr, scrollBackToTop, tooltip, toggleAttr} from './utils.js';
 
+import {loadComponent} from './live-html.js';
+
+
 import textEditor from '../editors/text-editor/index.js'; // a plain text editor (also used as default for unknown)
 import markdownEditor from '../editors/markdown-editor/index.js'; // [re-]formatting done on server
 import richEditor from '../editors/rich-editor/index.js'; // uses tinymce
@@ -320,7 +323,7 @@ async function showDocument(docInfo) {
         return;
     }
 
-    var isLocked = false;
+    var isLocked = false; // 
     if (isLocked) {
         let lock = {
             hint: 'type of coffee' // island; Island; 55qt; 55; 552;
@@ -718,149 +721,17 @@ function test1() {
     fetch('/dialogs/change-password-dialog.html')
         .then(resp => resp.text())
         .then(html => {
-            log('gotx-0');//, html);
-            //const domparser = new DOMParser();​​​​​
 
-            // MUST MUST USE: https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
-            // - special case for text/html: MUST READ
+            // where does a component's name get defined?
+            // - by the component itself (arbitrarily; e.g. via a meta tag)?
+            // - by the component's location (pathname)?
+            // - by the loader of the component: i load you and i call you 'xyz'
+            //    - if so, should allow for nesting/namespacing
+            //      where loader can decide only for its own use
 
-            // funny: https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags/1732454#1732454
+            // probably best for control is loader decides...
 
-            const domparser = new DOMParser();
-            const doc = domparser.parseFromString(html, 'text/html'); // FIREFOX: see https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
-
-            const templ = qs('main-part', doc);//'templ#test-1', doc);
-            log('gotx', templ);
-            for (const attr of templ.attributes) {
-                if (attr.name[0] === '$') {
-                    log('control attr', attr.name, attr.value, )
-                }
-                else
-                    log('normal attr', attr.name,'===', attr.value);
-            }
-            for (const el of qsa('script', doc)) {//doc.childNodes) {//children) { // skip comments & text nodes?
-                //prepareLiveEl(el);
-                // if (el.nodeName === 'SCRIPT' && !el.id) {
-                //     log('mabe?', el);
-                // }
-                if (!el.id) runScript(genScripter(el));// log('mabe?', el, !el.id);
-            }
-
-            // log('goty-2', doc.doctype, doc, doc.head, doc.body);
-            // for (const tld of doc.childNodes) {
-            //     //log('got', tld.nodeType, tld.nodeName); // 10=doctype; 8=comment; 1=html
-            //     if (tld.nodeType === 10) log('DOCTYPE is', tld.name);//nodeName);
-            // }
-            // for (const el of doc.head.childNodes)
-            //     x('head', el);
-            // for (const el of doc.body.childNodes) 
-            //     x('body', el);
-
-            // function x(title, el) {
-            //     if (el.nodeType === 8)
-            //         return;
-            //     else if (el.nodeType === 3) {
-            //         const t = el.innerText || '';
-            //         if (t.length && !/\s+/.test(t))
-            //             log(title, '#TEXT', t);
-            //     }
-            //     else
-            //         parseDoctypeComponentTag(el);//log(title, 'node', el.nodeType, el.nodeName);
-            // }
+            const comp = loadComponent('COMPONENT-NAME-HERE', html);
+            log('COMPONENT loaded', comp);
         })
-
-}
-
-function genScripter(el) {
-    //log(el, el.textContent);
-    const text = el.textContent;
-    //return;
-    try {
-        // COULD make this an async function for slow loading components
-        const fcn = new Function('doctypeComponentApi', 'window', 'document', 'eval', text); // other backdoor globals to remove?
-        log('Worked', fcn);
-        return fcn;
-    }
-    catch(err) {
-        log('Whoops, err', err);
-        return () => {};
-    }
-}
-
-function runScript(scriptFcn) {
-    const docApi = {
-        html:{}, 
-        style:{}, 
-        meta:{}, 
-        api: { 
-            load: {
-                css(){},
-                html: loadHtmlX,//(){},
-            },
-            live(){}, // this live must be tied to load() above (for control model)
-        },
-
-        // 1 of these for ALL components of this type
-        staticData: {}, // static data for ALL instances of THIS component
-    };
-
-    // easy to circumvent but block for trivial (accidental) access
-    // also: Function (but can get around that); other evident ones?
-    const windowStub = Object.create(null);
-    const documentStub = Object.create(null);
-    const evalStub = () => {};
-
-    const INSTANCE_HERE = {}; // maybe this is the api?
-
-    //const resx = scriptFcn.call(INSTANCE_HERE, docApi, windowStub, documentStub);
-    const resx = scriptFcn.call(docApi, windowStub, documentStub, evalStub); // so docApi becomes the 'this';
-    log('got back as loaded script', resx);
-}
-
-function loadHtmlX(str, ctrl) {
-    log('loading html componenet', str, ctrl);
-    const px = proxyMe(ctrl);
-    log('proxied?', px);
-
-    // should it return something?
-}
-
-function proxyMe(obj) {
-    
-    // should we SEAL/FREEZE obj afterwards (then flag as error when changed)?
-    // seal: can't change structure (?)
-    // freeze: can't change struture or values
-
-    log('proxying', obj);
-
-    // could walk up the chain: https://stackoverflow.com/a/8024294/11256689
-    const obs = Object.getOwnPropertyDescriptors(obj);
-
-    for(const p in obs ) {
-        const opt = obs[p];
-        if (!opt.enumerable) continue;
-
-        // MUST be writable (if value) else can't change so no event to setup
-        // must be configurable, else???
-        // does any of this matter since we're to setup a separate proxy?
-        // .enumerable .configurable .writable .value .get .set
-
-        log('prop: '+ p + '=', opt);
-        if ('value' in opt) {
-
-        }
-        else if ('get' in opt || 'set' in opt) {
-            // getter setter: use as is? or replace?
-        }
-
-        // for each prop, replace it with an explicit proxy? (lots of little proxies?)
-        //  - but then folks can keep using the object itself;
-        //  - in fact, MUST be able to use object itself (else how to set things, props, values)?
-        // or single proxy for whole object? (more efficient?)
-
-    }
-
-    const px = new Proxy({}, { // could pass obj, else we're hiding it
-        // handlers
-    });
 }

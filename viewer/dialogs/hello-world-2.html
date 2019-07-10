@@ -1,0 +1,23 @@
+<!doctype component>
+
+<span date-for-today>Hello World! today's date is <b>{{Date.now()}}</b></span>
+
+<style sh='span[date-for-today'>
+    -sh- {
+        display: flex;
+        flex-direction: column;
+        min-width: 350px;
+    }
+
+    -sh b {
+        display: block;
+        margin: 0;
+        text-align: center;
+        font: 600 28px system-ui;
+    }
+
+    .sh div {
+        display: flex;
+        flex-direction: row;
+    }
+</style>

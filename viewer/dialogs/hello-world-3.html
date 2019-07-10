@@ -1,0 +1,116 @@
+<!doctype component>
+
+<span date-for-today>Hello World! today's date is <b>{{Date.now()}}</b></span>
+
+<style lang=scss type=text/stylus sh='$uid span[date-for-today]' sx='$sh h1' sz='$sx button a'>
+
+    /* can use data.uid prop as a unique setting (i.e. scoped to this element) */
+    /* this means the FULL css is re-entered for EVERY COMPONENT */
+
+    /* css enhancements: 
+        shorthand selectors:
+            - set ONLY as attributes in style tag
+            - to be used, MUST be first non-white entry on a line
+              AND must be preceded by 1-2 dash '-' (can be terminated also by 0-n dashes)
+            - if using a live prop in selector (e.g. $uid), the FULL rule is updated 
+              in css everytime it changes (e.g. unique to an instance; bad idea;)
+            - can reference another (previous) shorthand $selector
+
+        variable values: can use live props as 'css-prop: var(livePropName);
+            - MUST be within a 'var()' expression
+            - must NOT be preceeded by normal 2-leading dashes
+                - that's how we know to connect it
+            - full css prop rule def MUST be on single line (does it? could just scan until ';')
+            - can be part of a computation
+            - everytime that prop is updated, ONLY that css property rule (for that selector)
+              is updated in styles.css (selector is from beginning of line until '{'
+    */
+
+    /* advanced usage: scoping to a specific component 
+        - below are means to scope css to a specific, individual component instance
+        - but before we proceed, a note:
+            "IT IS CONSIDERED VERY BAD to write css to be scoped as such":scope
+            "VERY VERY BAD" (and poor performance)
+            - allowed for those times where quick-and-dirty is good enough
+            - SHOULD NOT NEVER BE USED for production-grade components
+    */
+
+    --sh-- {
+        display: flex;
+        flex-direction: column;
+        min-width: 350px;
+
+        color: var(qwerty); /* no leading dash? */
+
+        z abc {
+            color: yellow;
+            background: red;
+            dispay: none;
+        }
+
+        @z hover abc {
+            color: blue;
+            background: red;
+
+            @z nn {
+
+            }
+            
+
+        }
+    }
+
+    -sh b {
+        display: block;
+        margin: 0;
+        text-align: center;
+        font: 600 28px system-ui;
+    }
+
+    .sh div {
+        display: flex;
+        flex-direction: -row-;
+    }
+
+    .sz b,
+    .sz i {
+        color: -site-blue-; /* if site-blue changes, only 'color' element is updated in styles.css */
+        background: var(site-blue); /* if site-blue changes, only 'color' element is updated in styles.css */
+    }
+</style>
+
+<script>
+    const { name: myName, api: { log }} = this; // maybe log is direct prop (since used often)?
+    log('loaded meself!', myName);
+
+
+    // if returns nothing: WAIT!!! how do we know not loaded already? (manually)
+    // - maybe if loadCss and loadHtml not called?
+    // - or considered automatic UNLESS .new() is returned?
+
+    // so, by default (.new NOT returned)
+    // - <styles> without IDs auto loaded in head (all others ignored)
+    // - all html part of component (IDs are removed; OR those with IDs are ignored?)
+
+    // if .new returned (or render?)
+    // - or render: first parm is new (true) or existing (false; so re-render)
+    // - BUT, why would we need to re-render? how would doc know this?
+    // - it should be up to component to know how/when to update itself (i.e. re-render)
+    // SO, render is called only ONCE for NEWly added components
+
+    // BUT if render is a STATIC function (since it's in this code block),
+    // how to create/use/reference instance data?
+
+    // where to set the MODEL: in static code or in RENDER code?
+
+    function render() {
+        const data = model({
+            // vars to be used in html/css
+        });
+    }
+
+    // if return a function, it's the render function
+    //  - and props attached to fcn? what do they represent?
+    // if return an object, expect a .render property
+    return render;//{ render };
+</script>
