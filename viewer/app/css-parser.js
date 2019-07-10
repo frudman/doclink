@@ -158,6 +158,8 @@ export function parseCss(css) {
     //  - remember nesting selectors with that 1 rule: on update, re-add that rule
     // - FLAG '&' for replacement with SELF selector (usually for ::classes; else can just add nested selector)
 
+    // How to allow for SCOPING: a UID for EACH component, and the css just for that
+
     log("PARSED CSS", selectors.first().nestedRules);
     log('TOOK ' + (Date.now() - startingTime) + 'ms');
 }
