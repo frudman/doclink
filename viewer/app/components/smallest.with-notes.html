@@ -1,0 +1,16 @@
+<script src=//doclib.app/@owner/my-app></script>
+
+<!-- 
+    if @owner === @community, redirect 302 to pre-done s3 file
+    else direct download from server (no redirect)
+
+    returned as application/javascript file (since from a script tag)
+
+    not recommended for SEO-sensitive apps (since nothing to index)
+    recommended for user-specific (i.e. with login), purely interactive apps
+    - e.g. mobile apps?
+
+    can be part of a larger static-html page
+    - will get all its info from my-app, including autoload or not and which tags to look for
+
+-->

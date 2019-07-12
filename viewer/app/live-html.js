@@ -59,6 +59,7 @@ const attribsToObj = el =>[...el.attributes]
 // 2- parse html to use live object from (1)
 //  2b- be efficient in re-rendering elements (reorder but don't redraw if unchanged)
 
+// TODO: MAY NOT BE REUSABLE!!! TBV
 const domparser = new DOMParser(); // reusable? TBV
 function parseComponentHtml(htmlSrcCode) {
 

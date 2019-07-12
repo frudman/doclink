@@ -1,0 +1,19 @@
+<script src=/doclib.app.js app=/path/to/my-app.html></script>
+
+<!-- note that the name is now absolute but relative to your site (NOT doclib.app!) 
+    first app downloaded will determine location of all your components (how? meta tag?)
+    @/ will be your host
+    @owner/ and @community/ will be doclib site
+
+    my-app.html must have a meta tag to specify base path of your components
+    if <meta self-hosted-components='/assets/components-for-app'>
+    then <meta uses search-box=@/search.html>
+    downloads /assets/components-for-app/search.html
+
+-->
+
+<main-part>
+    is this displayed?
+    <b>WITH</b> html???
+    <u>YES!!!</u><br>Whoohoo! 😃😃😃
+</main-part>

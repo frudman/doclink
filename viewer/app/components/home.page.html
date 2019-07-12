@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+    <head>
+
+    </head>
+    <body>
+        <read>
+            - https://developers.google.com/web/fundamentals/performance/critical-rendering-path/constructing-the-object-model
+            - https://css-tricks.com/an-introduction-and-guide-to-the-css-object-model-cssom/
+            - https://developer.mozilla.org/en-US/docs/Web/API/CSS_Object_Model
+            - https://developer.mozilla.org/en-US/docs/Web/API/CSS_Object_Model/Using_dynamic_styling_information
+
+
+            - .APP domain: https://get.app/#benefits
+
+
+            - https://gomakethings.com/why-i-wrote-my-own-vanilla-js-alternative-to-vue-and-react/
+            - https://github.com/cferdinandi/reef
+            - https://preactjs.com/
+            - https://mithril.js.org/
+            - https://www.reddit.com/r/javascript/comments/98b965/mithril_js_lightweight_and_simpler_alternative_to/
+
+
+            - https://ponyfoo.com/articles/es6-proxy-traps-in-depth
+
+            - https://github.com/amcss
+            - https://github.com/amcss/attribute-module-specification
+            - https://github.com/amcss/am-benchmarks
+            - https://stackoverflow.com/questions/22284219/css-performance-between-class-and-attribute-selectors
+            - https://github.com/threepointone/glamor/issues/339
+            - 
+            - https://www.sitepoint.com/optimizing-css-performance/
+            - https://www.sitepoint.com/optimizing-css-id-selectors-and-other-myths/
+
+            - https://github.com/uncss/uncss
+            - 
+            - 
+            - 
+            - 
+
+
+
+        </read>
+        <main>
+            Hi There! 
+            This is (yet another?) public place for developers to use or share their code. 
+            More specifically, to share web-based components, aka doctype-components.
+            (our wikipedia entry)
+
+            A web component is simply a single-file containing all the html, css, and javascript
+            required to display and interact with that component of yours.
+
+            This component can then be used in your apps, or, if you make it public, everyone else's apps!
+
+            Each component is kept as a SINGLE FILE that looks like a very simplified html page (more here).
+            [click to see a sample]
+
+            Anyone can add components to this repositary, for others to use.
+
+            Requirements to create and add a component are pretty simple (see here).
+
+            And we encourage all to add to our community! (but you can also create a private or corporate
+            account if you'd like, so only apps you approve can use your compoments)
+
+            <div>
+                <h1>single file components</h1>
+                <p>Can consist of multiple files and assets!!!</p>
+                <p>but each of those must be referenced from within the primary sfc file</p>
+            </div>
+
+            <section>
+                <h1>highlights</h1>
+                A doctype component is a single html-like file (in fact, we recommend using a .html extension so various
+                editors can use proper intellisense when editing)
+                
+                a DC can make use of additional assets (i.e. separate files) but these assets must then be explictly referenced
+                within the main DC file
+
+                A DC is meant to be used AS-IS (downloaded into a browser) without need for BUILD (recommendation is to NOT build 
+                for smaller, simple compoments). However, a DC can be build (for a dev's peace of mind!)
+
+                To quickly and easily package web-ui code/functions/features to be easily shared and consumed by 
+                [possible unrelated/other] web apps. No build chain needed (and building, if wished for) can be fully
+                automated outside the dev process (i.e. by the repo itself; mostly for compression purposes: mostly minification
+                & gzipping)
+
+                To leverage current [excellent] crop of native toolsets for front end devs (e.g. visual studio code)
+                - works really well with html code, css stylesheets, and javascript code.
+
+                File struture is miliar for components and apps; an app must (within its js code)
+                somehow specify what the "main html" body content is going to be
+
+                An app is @owner/app-name or @owner/component-name
+                - on doclib.app, look for .html and send that down
+                - for public source, https://doclib.app/@owner/comp-name/source
+                    - OR https://doclib.app/@owner/comp-name.html (for code)
+                         https://doclib.app/@owner/comp-name (for human-friendly)? [too likely to be error prone]
+                - maybe ALWAYS include <meta public-source-code=https://doclib.app/@owner/comp-name/source-code> in a component file?
+                  so if getting component in a browser, will see that line first (near top)
+                - source, help, details, ?
+                - in browser, display human-friendly info (including available source code, assets)
+                - if user logged in is also owner, can update details right there (upload folder/files, change version info, ...)
+                - each < meta> tag is displayed as an input field 
+                    - but if change here, edits might be lost on next upload
+                    - maybe just a viewer mechanism (must update manually locally?)
+
+                A component name CANNOT include dot (.)
+                Only a-z 0-9 - (no _ ?)
+                Use DOT to specify which version you want
+                comp-name (latest)
+                comp-name.2 (version 2, latest of that 2.x; NOT 3)
+                comp-name.2.x (any minor version of 2.x: 2.x.1 2.x.2 latest of that)
+                comp-name.2+ (2 or above, incl 3; is this not just latest?)
+
+                a component library is simply @owner/comp-name/sub-comp-name
+                - so sub files within comp folder
+
+                To bundle multi-comps together (always OR on-demand)
+                - <meta bundle comp1.src='...' comp2.src='...', comp3.src='...'>
+                    - requests a bundle from server: a single file is returned for these 3 components
+                        - request is: https://doclib.app/@owner1/comp1-name.1/@owner2/comp2-name.3.1/@owner3/comp-name3
+                            - maybe use localDB to cache individual parts?
+                            - since using doclib.app DOMAIN, maybe with this trick:
+                                - https://levelup.gitconnected.com/share-localstorage-sessionstorage-between-different-domains-eb07581e9384
+                                - https://blog.sessionstack.com/how-javascript-works-storage-engines-how-to-choose-the-proper-storage-api-da50879ef576
+                    - OR, this is where BUILD is correct solution (build at our server or dev's?)
+                    - OR simply ask for them as one (not bundle required)
+                    - BUT, if a single file, browser cannot CACHE that component individually
+                        - may mean a re-download later
+                    - maybe for @community, it's always 1 at a time?
+
+
+            </section>
+
+            <section>
+                SUPPORT:
+                In general, all main platforms:
+                - Chrome: 31+ 
+                    - android
+                - Firefox: 12+
+                    - android
+                - Edge: from 12 plus (to support DOMParser.parseFromString)
+                    - https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
+                    - edge mobile: yes?
+                - Internet Explorer: NO for now?
+                    - IE.11+ hopefully (not yet, needs polyfills)
+                    - likely NEVER IE.10
+                    - Nothing below IE.10 (supports DOMParser.parseFromString(text/html))
+                - Safari: 3.2 OR 9.1 (to be investigated)
+                - Opera: 8 or 17+ (tbi)
+            </section>
+
+            <div>
+                PArsing on NODE (for building, verification, validations):
+                - google 'node html parser'
+                - https://www.npmjs.com/package/node-html-parser
+                - https://tomassetti.me/parsing-html/ (from 2017)
+
+                Parsing in Browser: DOMParser
+                - https://developer.mozilla.org/en-US/docs/Web/API/DOMParser
+                - ALSO: https://developer.mozilla.org/en-US/docs/Web/API/DOMParser#DOMParser_HTML_extension
+                - NOT universal but supported well: chrome.1+ edge.12+ ff.1+ ie.9+ opera.8+ safari.3.2+
+                    - also android.webview, chrome.android, firefox.android, opera.android, safari.ios 
+            </div>
+
+            <div>
+                todo:
+                - create main site (doclib.com?)
+                    - tutorial on what it is, how to use them, how to create them
+                    - how to publish them (community, owner, private, corporate)
+                    - how to self-host (js file only)
+                - create wikipedia page for doclib
+                    - what the site is (a repositary of public components)
+                - create wikipedia page for doctype-components (& redirect from doctype-component)
+                    - shows fully explained file format
+            </div>
+
+            <div>
+                <h2>HTTP2 IS ready for prime time</h2>
+                <h1>HTTP2 **Server Push** NOT ready for prime time</h1>
+                HTTP2 Server Push good IF know what's already been cached (else will keep sending items already cached)
+                - cache digest protocol was tried in 2017 but seems to have stalled
+                - best way would be via iframe solution (get/send messages)
+                    - https://levelup.gitconnected.com/share-localstorage-sessionstorage-between-different-domains-eb07581e9384
+                    - which would then maintain a separate local-storage-based cache
+                    - and could do this for all domains (cross-domain)
+                biggest problems:
+                - https://medium.com/the-node-js-collection/node-js-can-http-2-push-b491894e1bb1
+                - WOW: READ THIS: https://jakearchibald.com/2017/h2-push-tougher-than-i-thought/
+                - https://medium.com/@jacobtan/understanding-http-2-and-its-caveats-1e8200519c4c
+                - https://caniuse.com/#feat=http2
+                - https://developers.google.com/web/fundamentals/performance/http2/
+                - nodejs: https://nodejs.org/api/http2.html
+            </div>
+
+            <div>
+                generate SSL certs for localhost dev/nodejs (easy):
+                - https://webapplog.com/http2-node/
+
+                Browser limits (e.g. concurrent connections)
+                - http://www.browserscope.org/?category=network&v=1
+            </div>
+        </main>
+    </body>
+</html>
